@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 
 
 class LocalUserProfile:
-    def __init__(self, user_id, telegram, first_name, photo):
-        self.user_id: int = user_id
+    def __init__(self, user_id: int, telegram: str, first_name: str, photo: bytes):
+        self.id: int = user_id
         self.telegram: str = telegram
         self.name: str = first_name
         self.photo: bytes = photo
@@ -14,6 +14,7 @@ class LocalUserProfile:
         self.age: int = None
         self.city: str = None
         self.about: str = None
+        self.hobbies: list = None
 
 
 load_dotenv()
@@ -39,8 +40,7 @@ def start(message: telebot.types.Message) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'create_profile')
 def create_profile(callback: telebot.types.CallbackQuery) -> None:
-    # DB
-    if users.get(callback.message.from_user.id) is not None:
+    if db.user_exists(callback.message.from_user.id):
         return
 
     bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
@@ -62,9 +62,11 @@ def create_profile(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback == 'show_name')
 def show_name(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if user.name is None:
         get_name(callback)
@@ -113,9 +115,12 @@ def get_name(callback: telebot.types.CallbackQuery, error=None) -> None:
 
 
 def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(message.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
+
     if message.text is None:
         bot.delete_message(callback.message.chat.id, message.message_id)
         get_name(callback, True)
@@ -126,6 +131,7 @@ def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQue
     except:
         pass
     if callback.data.endswith('once'):
+        db.session.commit()
         profile(callback)
         return
     show_name(callback)
@@ -133,9 +139,11 @@ def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQue
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_gender")
 def show_gender(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if user.gender is None:
         choose_gender(callback)
@@ -178,9 +186,11 @@ def choose_gender(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('set_gender'))
 def set_gender(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if callback.data.endswith('w'):
         user.gender = "Женщина"
@@ -188,6 +198,7 @@ def set_gender(callback: telebot.types.CallbackQuery) -> None:
         user.gender = "Мужчина"
 
     if "once" in callback.data:
+        db.session.commit()
         profile(callback)
         return
 
@@ -196,9 +207,11 @@ def set_gender(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'show_age')
 def show_age(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if user.age is None:
         get_age(callback)
@@ -241,9 +254,11 @@ def get_age(callback: telebot.types.CallbackQuery, error=None) -> None:
 
 
 def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(message.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     try:
         age = int(message.text)
@@ -262,6 +277,7 @@ def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuer
         pass
 
     if callback.data.endswith('once'):
+        db.session.commit()
         profile(callback)
         return
 
@@ -270,9 +286,11 @@ def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuer
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'show_city')
 def show_city(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if user.city is None:
         get_city(callback)
@@ -314,9 +332,11 @@ def get_city(callback: telebot.types.CallbackQuery, error=None) -> None:
 
 
 def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(message.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if not message.text:
         bot.delete_message(message.chat.id, message.message_id)
@@ -330,6 +350,7 @@ def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQue
         pass
 
     if callback.data.endswith('once'):
+        db.session.commit()
         profile(callback)
         return
 
@@ -338,9 +359,11 @@ def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQue
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'show_about')
 def show_about(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if user.about is None:
         get_about(callback)
@@ -354,7 +377,7 @@ def show_about(callback: telebot.types.CallbackQuery) -> None:
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_about")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_photo_registration")
+    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_hobbies")
     keyboard.add(edit_button, next_step_button)
 
     try:
@@ -382,9 +405,11 @@ def get_about(callback: telebot.types.CallbackQuery, error=None) -> None:
 
 
 def set_about(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if len(message.text) < 5:
         bot.send_message(callback.message.chat.id, "Недостаточно символов, попробуйте снова")
@@ -402,17 +427,91 @@ def set_about(message: telebot.types.Message, callback: telebot.types.CallbackQu
         pass
 
     if callback.data.endswith('once'):
+        db.session.commit()
         profile(callback)
         return
 
     show_about(callback)
 
 
+@bot.callback_query_handler(func=lambda callback: callback.data == "show_hobbies")
+def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    if user is None:
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
+
+    if user.hobbies is None:
+        choose_hobbies(callback)
+        return
+
+    # todo найти ошибку
+    try:
+        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
+    except:
+        pass
+
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="choose_hobbies")
+    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_photo_registration")
+    keyboard.add(edit_button, next_step_button)
+
+    try:
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
+                              text=f"Ваши хобби: {user.hobbies}", reply_markup=keyboard)
+    except:
+        bot.send_message(callback.message.chat.id, f"Ваши хобби: {user.hobbies}", reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith('choose_hobbies'))
+def choose_hobbies(callback: telebot.types.CallbackQuery) -> None:
+    temp_callback_data = ""
+    if callback.data.endswith('once'):
+        temp_callback_data = "once"
+
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    button = telebot.types.InlineKeyboardButton("Хобби 1", callback_data="set_hobbies_" + temp_callback_data + "/Хобби 1")
+    button_2 = telebot.types.InlineKeyboardButton("Хобби 2", callback_data="set_hobbies_" + temp_callback_data + "/Хобби 2")
+    button_3 = telebot.types.InlineKeyboardButton("Хобби 3", callback_data="set_hobbies_" + temp_callback_data + "/Хобби 3")
+    keyboard.add(button, button_2, button_3)
+    try:
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
+                              text=f"Выберете свои хобби (минимум 2, максимум 5)", reply_markup=keyboard)
+    except:
+        bot.send_message(callback.message.chat.id, f"Выберете свои хобби (минимум 2, максимум 5)", reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith('set_hobbies'))
+def set_hobbies(callback: telebot.types.CallbackQuery) -> None:
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    if user is None:
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
+
+    if user.hobbies is None:
+        user.hobbies = []
+
+    hobby = callback.data.split('/')[1]
+    if hobby not in user.hobbies:
+        user.hobbies.append(hobby)
+
+    if "once" in callback.data:
+        db.session.commit()
+        profile(callback)
+        return
+
+    show_hobbies(callback)
+
+
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('show_photo'))
 def show_photo(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if user.photo is None:
         get_photo(callback)
@@ -426,8 +525,8 @@ def show_photo(callback: telebot.types.CallbackQuery) -> None:
 
     if callback.data.endswith('registration'):
         user = users.get(callback.from_user.id)
-        new_user = db.UserProfile(id=user.user_id, name=user.name, age=user.age, city=user.city, about=user.about,
-                                  telegram=user.telegram, photo=user.photo, gender=user.gender)
+        new_user = db.UserProfile(id=user.id, name=user.name, age=user.age, city=user.city, about=user.about,
+                                  telegram=user.telegram, photo=user.photo, gender=user.gender, hobbies=user.hobbies)
         db.session.add(new_user)
         db.session.commit()
 
@@ -456,9 +555,11 @@ def get_photo(callback: telebot.types.CallbackQuery) -> None:
 
 
 def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQuery, temp_message) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
-        return
+        user: LocalUserProfile = users.get(callback.from_user.id)
+        if user is None:
+            return
 
     if message.photo is None:
         try:
@@ -482,6 +583,7 @@ def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQu
         pass
 
     if callback.data.endswith('once'):
+        db.session.commit()
         profile(callback)
         return
 
@@ -516,7 +618,7 @@ def profile(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'edit_profile')
 def edit_profile(callback: telebot.types.CallbackQuery) -> None:
-    user: LocalUserProfile = users.get(callback.from_user.id)
+    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if user is None:
         return
 
