@@ -1,7 +1,12 @@
 import telebot
-import db
 from os import getenv
 from dotenv import load_dotenv
+import db
+
+# Загрузка переменных окружения
+load_dotenv()
+TOKEN = getenv("BOT_TOKEN")
+bot = telebot.TeleBot(TOKEN)
 
 
 class LocalUserProfile:
@@ -17,14 +22,34 @@ class LocalUserProfile:
         self.hobbies: list = None
 
 
-load_dotenv()
-TOKEN = getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
 users: dict = {}
+
+
+def edit_message_with_except(message):
+    try:
+        bot.edit_message_reply_markup(message.chat.id, message.message_id)
+    except:
+        pass
+
+
+def delete_message_with_except(message):
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except:
+        pass
+
+
+def edit_message_markup_with_except(message):
+    try:
+        bot.edit_message_reply_markup(message.chat.id, message.message_id)
+    except:
+        pass
 
 
 @bot.message_handler(commands=['start'])
 def start(message: telebot.types.Message) -> None:
+    edit_message_with_except(message)
+
     keyboard = telebot.types.InlineKeyboardMarkup()
     if not db.user_exists(message.from_user.id):
         button = telebot.types.InlineKeyboardButton("Создать профиль", callback_data="create_profile")
@@ -72,11 +97,7 @@ def show_name(callback: telebot.types.CallbackQuery) -> None:
         get_name(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_name")
@@ -95,11 +116,7 @@ def show_name(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_name'))
 def get_name(callback: telebot.types.CallbackQuery, error=None) -> None:
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     if callback.message.text.startswith("Добро"):
         bot.send_message(callback.message.chat.id, "Напишите своё имя:")
@@ -122,14 +139,11 @@ def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQue
             return
 
     if message.text is None:
-        bot.delete_message(callback.message.chat.id, message.message_id)
+        delete_message_with_except(callback.message)
         get_name(callback, True)
         return
     user.name = message.text
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
+    delete_message_with_except(message)
     if callback.data.endswith('once'):
         db.session.commit()
         profile(callback)
@@ -149,11 +163,7 @@ def show_gender(callback: telebot.types.CallbackQuery) -> None:
         choose_gender(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="choose_gender")
@@ -217,11 +227,7 @@ def show_age(callback: telebot.types.CallbackQuery) -> None:
         get_age(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_age")
@@ -237,18 +243,15 @@ def show_age(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_age'))
 def get_age(callback: telebot.types.CallbackQuery, error=None) -> None:
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
+
     _message_text = "Напишите свой возраст:" if not error else "Напишите свой возраст корректно:"
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
                               text=_message_text)
     except:
-        pass
+        bot.send_message(callback.message.chat.id, _message_text)
 
     bot.register_next_step_handler(callback.message, set_age, callback)
 
@@ -263,18 +266,16 @@ def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuer
     try:
         age = int(message.text)
         if age < 18 or age > 100:
-            bot.delete_message(message.chat.id, message.message_id)
+            delete_message_with_except(message)
             get_age(callback, True)
             return
     except:
-        bot.delete_message(message.chat.id, message.message_id)
+        delete_message_with_except(message)
         get_age(callback, True)
         return
+
     user.age = age
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
+    delete_message_with_except(message)
 
     if callback.data.endswith('once'):
         db.session.commit()
@@ -296,11 +297,7 @@ def show_city(callback: telebot.types.CallbackQuery) -> None:
         get_city(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_city")
@@ -316,11 +313,7 @@ def show_city(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_city'))
 def get_city(callback: telebot.types.CallbackQuery, error=None) -> None:
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
@@ -339,15 +332,12 @@ def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQue
             return
 
     if not message.text:
-        bot.delete_message(message.chat.id, message.message_id)
+        delete_message_with_except(message)
         get_city(callback, True)
         return
 
     user.city = message.text
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
+    delete_message_with_except(message)
 
     if callback.data.endswith('once'):
         db.session.commit()
@@ -369,11 +359,7 @@ def show_about(callback: telebot.types.CallbackQuery) -> None:
         get_about(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_about")
@@ -389,11 +375,7 @@ def show_about(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_about'))
 def get_about(callback: telebot.types.CallbackQuery, error=None) -> None:
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
@@ -415,16 +397,14 @@ def set_about(message: telebot.types.Message, callback: telebot.types.CallbackQu
         bot.send_message(callback.message.chat.id, "Недостаточно символов, попробуйте снова")
         get_about(callback)
         return
+
     if not message.text:
-        bot.delete_message(message.chat.id, message.message_id)
+        delete_message_with_except(message)
         get_about(callback, True)
         return
 
     user.about = message.text
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
+    delete_message_with_except(message)
 
     if callback.data.endswith('once'):
         db.session.commit()
@@ -446,11 +426,7 @@ def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
         choose_hobbies(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="choose_hobbies")
@@ -459,9 +435,11 @@ def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                              text=f"Ваши хобби: {user.hobbies}", reply_markup=keyboard)
+                              text=f"Ваши хобби: {', '.join(str(item) for item in user.hobbies)}",
+                              reply_markup=keyboard)
     except:
-        bot.send_message(callback.message.chat.id, f"Ваши хобби: {user.hobbies}", reply_markup=keyboard)
+        bot.send_message(callback.message.chat.id, f"Ваши хобби: {', '.join(str(item) for item in user.hobbies)}",
+                         reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('choose_hobbies'))
@@ -471,15 +449,20 @@ def choose_hobbies(callback: telebot.types.CallbackQuery) -> None:
         temp_callback_data = "once"
 
     keyboard = telebot.types.InlineKeyboardMarkup()
-    button = telebot.types.InlineKeyboardButton("Хобби 1", callback_data="set_hobbies_" + temp_callback_data + "/Хобби 1")
-    button_2 = telebot.types.InlineKeyboardButton("Хобби 2", callback_data="set_hobbies_" + temp_callback_data + "/Хобби 2")
-    button_3 = telebot.types.InlineKeyboardButton("Хобби 3", callback_data="set_hobbies_" + temp_callback_data + "/Хобби 3")
-    keyboard.add(button, button_2, button_3)
+    hobbies = ["Спорт", "Творчество", "Природа", "Кулинария", "Гейминг", "Путешествия", "Технологии", "Духовность",
+               "Коллекционирование"]
+    buttons = []
+    for hobby in hobbies:
+        button = telebot.types.InlineKeyboardButton(hobby, callback_data=f"set_hobbies_{temp_callback_data}/{hobby}")
+        buttons.append(button)
+    keyboard.add(*buttons)
+
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                              text=f"Выберете свои хобби (минимум 2, максимум 5)", reply_markup=keyboard)
+                              text=f"Выберете свои хобби", reply_markup=keyboard)
     except:
-        bot.send_message(callback.message.chat.id, f"Выберете свои хобби (минимум 2, максимум 5)", reply_markup=keyboard)
+        bot.send_message(callback.message.chat.id, f"Выберете свои хобби",
+                         reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('set_hobbies'))
@@ -496,6 +479,12 @@ def set_hobbies(callback: telebot.types.CallbackQuery) -> None:
     hobby = callback.data.split('/')[1]
     if hobby not in user.hobbies:
         user.hobbies.append(hobby)
+    else:
+        user.hobbies.remove(hobby)
+
+    # if len(user.hobbies) < 2:
+    #     choose_hobbies(callback)
+    #     return
 
     if "once" in callback.data:
         db.session.commit()
@@ -517,11 +506,7 @@ def show_photo(callback: telebot.types.CallbackQuery) -> None:
         get_photo(callback)
         return
 
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     if callback.data.endswith('registration'):
         user = users.get(callback.from_user.id)
@@ -539,11 +524,7 @@ def show_photo(callback: telebot.types.CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_photo'))
 def get_photo(callback: telebot.types.CallbackQuery) -> None:
-    # todo найти ошибку
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
 
     try:
         temp_message = bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
@@ -562,13 +543,10 @@ def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQu
             return
 
     if message.photo is None:
-        try:
-            bot.delete_message(message.chat.id, message.message_id)
-            bot.delete_message(message.chat.id, temp_message.message_id)
-            get_photo(callback)
-            return
-        except:
-            pass
+        delete_message_with_except(message)
+        delete_message_with_except(temp_message)
+        get_photo(callback)
+        return
 
     photo = message.photo[-1]
     file_info = bot.get_file(photo.file_id)
@@ -576,11 +554,8 @@ def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQu
 
     user.photo = photo_info
 
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-        bot.delete_message(message.chat.id, temp_message.message_id)
-    except:
-        pass
+    delete_message_with_except(message)
+    delete_message_with_except(temp_message)
 
     if callback.data.endswith('once'):
         db.session.commit()
@@ -596,17 +571,11 @@ def profile(callback: telebot.types.CallbackQuery) -> None:
     if user is None:
         return
 
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
-    try:
-        bot.delete_message(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
+    delete_message_with_except(callback.message)
+
     keyboard = telebot.types.InlineKeyboardMarkup()
     button = telebot.types.InlineKeyboardButton("Изменить", callback_data="edit_profile")
-    # button_2 = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_about")
     keyboard.add(button)
 
     if user.photo is not None:
@@ -622,10 +591,8 @@ def edit_profile(callback: telebot.types.CallbackQuery) -> None:
     if user is None:
         return
 
-    try:
-        bot.edit_message_reply_markup(callback.message.chat.id, callback.message.message_id)
-    except:
-        pass
+    edit_message_markup_with_except(callback.message)
+    delete_message_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
     name_button = telebot.types.InlineKeyboardButton("Имя", callback_data="get_name_once")
@@ -633,8 +600,9 @@ def edit_profile(callback: telebot.types.CallbackQuery) -> None:
     age_button = telebot.types.InlineKeyboardButton("Возраст", callback_data="get_age_once")
     city_button = telebot.types.InlineKeyboardButton("Город", callback_data="get_city_once")
     about_button = telebot.types.InlineKeyboardButton("О себе", callback_data="get_about_once")
+    hobbies_button = telebot.types.InlineKeyboardButton("Хобби", callback_data="choose_hobbies_once")
     photo_button = telebot.types.InlineKeyboardButton("Фото", callback_data="get_photo_once")
-    keyboard.add(name_button, gender_button, age_button, city_button, about_button, photo_button)
+    keyboard.add(name_button, gender_button, age_button, city_button, about_button, hobbies_button, photo_button)
 
     bot.send_message(callback.message.chat.id, 'Выберете поле для редактирования', reply_markup=keyboard)
 
@@ -645,4 +613,4 @@ def text(message: telebot.types.Message) -> None:
 
 
 if __name__ == '__main__':
-    bot.polling()
+    bot.polling(timeout=35)
