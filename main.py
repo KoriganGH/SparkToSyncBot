@@ -23,6 +23,7 @@ class LocalUserProfile:
 
 
 users: dict = {}
+current_user_index: dict = {}
 
 
 def delete_message_with_except(message):
@@ -135,12 +136,15 @@ def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQue
         delete_message_with_except(callback.message)
         get_name(callback, True)
         return
+
     user.name = message.text
     delete_message_with_except(message)
+
     if callback.data.endswith('once'):
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
+
     show_name(callback)
 
 
@@ -201,7 +205,7 @@ def set_gender(callback: telebot.types.CallbackQuery) -> None:
         user.gender = "Мужчина"
 
     if "once" in callback.data:
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
 
@@ -271,7 +275,7 @@ def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuer
     delete_message_with_except(message)
 
     if callback.data.endswith('once'):
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
 
@@ -333,7 +337,7 @@ def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQue
     delete_message_with_except(message)
 
     if callback.data.endswith('once'):
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
 
@@ -400,7 +404,7 @@ def set_about(message: telebot.types.Message, callback: telebot.types.CallbackQu
     delete_message_with_except(message)
 
     if callback.data.endswith('once'):
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
 
@@ -422,7 +426,7 @@ def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
 
     keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="choose_hobbies")
+    edit_button = telebot.types.InlineKeyboardButton("Добавить/Удалить", callback_data="choose_hobbies")
     next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_photo_registration")
     keyboard.add(edit_button, next_step_button)
 
@@ -480,7 +484,7 @@ def set_hobbies(callback: telebot.types.CallbackQuery) -> None:
     #     return
 
     if "once" in callback.data:
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
 
@@ -504,13 +508,8 @@ def show_photo(callback: telebot.types.CallbackQuery) -> None:
     if callback.data.endswith('registration'):
         user = users.get(callback.from_user.id)
         if user is not None:
-            try:
-                new_user = db.UserProfile(id=user.id, name=user.name, age=user.age, city=user.city, about=user.about,
-                                          telegram=user.telegram, photo=user.photo, gender=user.gender,
-                                          hobbies=user.hobbies)
-                db.session.add(new_user)
-                db.session.commit()
-            except:
+            response = db.add_user(user)
+            if response is False:
                 start(callback.message)
         else:
             start(callback.message)
@@ -558,7 +557,7 @@ def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQu
     delete_message_with_except(temp_message)
 
     if callback.data.endswith('once'):
-        db.session.commit()
+        db.update_user(user)
         profile(callback)
         return
 
@@ -581,7 +580,7 @@ def profile(callback: telebot.types.CallbackQuery) -> None:
     keyboard.add(button, search_button, tests_button)
 
     if user.photo is not None:
-        bot.send_photo(callback.message.chat.id, user.photo, f"Профиль\n{user}", reply_markup=keyboard)
+        bot.send_photo(callback.message.chat.id, user.photo, f"{user}", reply_markup=keyboard, parse_mode="HTML")
     else:
         # todo добавить обязательную установку фото
         bot.send_message(callback.message.chat.id, f"У вас нет фото :(\nВаш профиль:\n{user}", reply_markup=keyboard)
@@ -636,42 +635,65 @@ def search(callback: telebot.types.CallbackQuery) -> None:
 def basic_search(callback: telebot.types.CallbackQuery) -> None:
     available_users = db.get_users_with_no_interactions(callback.from_user.id)
     if available_users:
-        for user in available_users:
-            keyboard = telebot.types.InlineKeyboardMarkup()
-            like_button = telebot.types.InlineKeyboardButton(text="👍", callback_data=f'reaction_{user.id}_like')
-            dislike_button = telebot.types.InlineKeyboardButton(text="👎", callback_data=f'reaction_{user.id}_dislike')
-            keyboard.add(like_button, dislike_button)
-            if user.photo is None:
-                continue
-
-            bot.send_photo(callback.message.chat.id, user.photo, f"Профиль\n{user}", reply_markup=keyboard)
+        current_user_index[callback.from_user.id] = (available_users, 0)
+        send_next_profile(callback)
     else:
         bot.send_message(callback.message.chat.id, 'На данный момент для вас нет подходящих профилей')
+        profile(callback)
 
 
 def premium_search(callback: telebot.types.CallbackQuery) -> None:
     pass
 
 
+def send_next_profile(callback: telebot.types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    if current_user_index.get(user_id) is None:
+        basic_search(callback)
+        return
+    edit_message_markup_with_except(callback.message)
+    delete_message_with_except(callback.message)
+
+    available_users, index = current_user_index[user_id]
+
+    if index < len(available_users):
+        user = available_users[index]
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        like_button = telebot.types.InlineKeyboardButton(text="👍", callback_data=f'reaction_{user.id}_like')
+        dislike_button = telebot.types.InlineKeyboardButton(text="👎", callback_data=f'reaction_{user.id}_dislike')
+        stop_button = telebot.types.InlineKeyboardButton(text="Выход", callback_data='profile')
+        keyboard.add(like_button, stop_button, dislike_button)
+
+        if user.photo is not None:
+            bot.send_photo(callback.message.chat.id, user.photo, f"{user}", reply_markup=keyboard, parse_mode="HTML")
+        else:
+            current_user_index[user_id] = (available_users, index + 1)
+            send_next_profile(callback)
+    else:
+        basic_search(callback)
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reaction_'))
-def handle_reaction(call):
-    user_id = call.from_user.id
-    target_user_id = int(call.data.split('_')[1])
-    reaction_type = call.data.split('_')[2]
+def handle_reaction(callback: telebot.types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    target_user_id = int(callback.data.split('_')[1])
+    reaction_type = callback.data.split('_')[2]
 
-    try:
-        new_reaction = db.reactions_table.insert().values(
-            user_id=user_id,
-            target_user_id=target_user_id,
-            reaction=reaction_type
-        )
-        db.session.execute(new_reaction)
-        db.session.commit()
+    response = db.add_reaction(user_id, target_user_id, reaction_type)
 
-    except Exception as e:
-        print(e)
+    if response is True:
+        bot.answer_callback_query(callback.id, "Вы успешно оценили профиль!")
+    else:
+        bot.answer_callback_query(callback.id, "Произошла ошибка, попробуйте перезапустить поиск")
 
-    bot.answer_callback_query(call.id, "Вы успешно оценили профиль!")
+    delete_message_with_except(callback.message)
+    if current_user_index.get(user_id) is None:
+        basic_search(callback)
+        return
+
+    available_users, index = current_user_index[user_id]
+    current_user_index[user_id] = (available_users, index + 1)
+    send_next_profile(callback)
 
 
 @bot.message_handler(content_types=['text'])
