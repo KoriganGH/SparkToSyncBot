@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import create_engine, Column, BigInteger, String, Integer, LargeBinary, Boolean, DateTime, ForeignKey, \
     Table, func
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
@@ -17,17 +18,65 @@ engine = create_engine(DB_URL)
 Session = sessionmaker(bind=engine)
 Base = declarative_base()
 
+
 # Таблица для связи реакций
-reactions_table = Table('reactions', Base.metadata,
-                        Column('user_id', BigInteger, ForeignKey('users3.id'), primary_key=True),
-                        Column('target_user_id', BigInteger, ForeignKey('users3.id'), primary_key=True),
-                        Column('reaction', String(10), nullable=False)  # 'like' или 'dislike'
-                        )
+class Reaction(Base):
+    __tablename__ = 'reactions'
+    user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+    target_user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+    reaction = Column(String(10), nullable=False)  # 'like' или 'dislike'
+
+
+def add_reaction(user_id, target_user_id, reaction_type) -> bool:
+    try:
+        new_reaction = Reaction(
+            user_id=user_id,
+            target_user_id=target_user_id,
+            reaction=reaction_type
+        )
+
+        with Session() as session:
+            session.add(new_reaction)
+            session.commit()
+
+            return True
+
+    except SQLAlchemyError as e:
+        print(f"Error occurred: {e}")
+        return False
+
+
+class Match(Base):
+    __tablename__ = 'matches'
+    user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+    matched_user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+    matched_at = Column(DateTime, default=datetime.now, nullable=False)
+
+
+def check_match(user_id, target_user_id) -> bool:
+    with Session() as session:
+        match = session.query(Reaction).filter_by(
+            user_id=target_user_id,
+            target_user_id=user_id,
+            reaction='like'
+        ).first()
+
+        return match is not None
+
+
+def add_match(user_id, matched_user_id):
+    new_match = Match(
+        user_id=user_id,
+        matched_user_id=matched_user_id
+    )
+    with Session() as session:
+        session.add(new_match)
+        session.commit()
 
 
 # Модель профиля пользователя
 class UserProfile(Base):
-    __tablename__ = 'users3'
+    __tablename__ = 'users4'
     id = Column(BigInteger, primary_key=True)
     name = Column(String(100), nullable=False)
     age = Column(Integer, nullable=False)
@@ -38,14 +87,20 @@ class UserProfile(Base):
     photo = Column(LargeBinary, nullable=False)
     hobbies = Column(MutableList.as_mutable(ARRAY(String)), nullable=False)
     premium = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True),
-                        server_default=func.now())
+    created_at = Column(DateTime, default=datetime.now)
     reactions = relationship(
         'UserProfile',
-        secondary=reactions_table,
-        primaryjoin=id == reactions_table.c.user_id,
-        secondaryjoin=id == reactions_table.c.target_user_id,
+        secondary='reactions',
+        primaryjoin=id == Reaction.user_id,
+        secondaryjoin=id == Reaction.target_user_id,
         backref="reacted_by"
+    )
+    matches = relationship(
+        'UserProfile',
+        secondary='matches',
+        primaryjoin=id == Match.user_id,
+        secondaryjoin=id == Match.matched_user_id,
+        backref="matched_with"
     )
 
     def __str__(self):
@@ -75,24 +130,6 @@ def add_user(user) -> bool:
         )
         with Session() as session:
             session.add(new_user)
-            session.commit()
-            return True
-
-    except SQLAlchemyError as e:
-        print(f"Error occurred: {e}")
-        return False
-
-
-def add_reaction(user_id, target_user_id, reaction_type) -> bool:
-    try:
-        new_reaction = reactions_table.insert().values(
-            user_id=user_id,
-            target_user_id=target_user_id,
-            reaction=reaction_type
-        )
-
-        with Session() as session:
-            session.execute(new_reaction)
             session.commit()
             return True
 
@@ -136,14 +173,40 @@ def update_user(user: UserProfile) -> bool:
         return False
 
 
-def get_users_who_liked_first(user_id):
-    """ Возвращает пользователей, которые лайкнули заданного пользователя первыми. """
+def get_user_first_match(user: UserProfile):
     with Session() as session:
+        user = session.merge(user)
+        matches = user.matches
+        if matches:
+            return matches[0]
+        return None
+
+
+def delete_user_first_match(user: UserProfile):
+    with Session() as session:
+        user = session.merge(user)
+        del user.matches[0]
+        session.commit()
+        return True
+
+
+def get_users_who_liked_first(user_id):
+    """ Возвращает пользователей, которые лайкнули заданного пользователя,
+    при этом сам пользователь не оценивал этих пользователей. """
+    with Session() as session:
+        # Подзапрос для получения ID пользователей, которых оценивал заданный пользователь
+        users_evaluated_by_user = session.query(Reaction.target_user_id).filter(
+            Reaction.user_id == user_id
+        ).subquery()
+
+        # Основной запрос для получения пользователей, которые лайкнули заданного пользователя,
+        # при этом сам пользователь не оценивал этих пользователей
         query = session.query(UserProfile).join(
-            reactions_table, UserProfile.id == reactions_table.c.user_id
+            Reaction, UserProfile.id == Reaction.user_id
         ).filter(
-            reactions_table.c.target_user_id == user_id,
-            reactions_table.c.reaction == 'like'
+            Reaction.target_user_id == user_id,
+            Reaction.reaction == 'like',
+            ~UserProfile.id.in_(users_evaluated_by_user)
         )
         return query.all()
 
@@ -152,9 +215,9 @@ def get_users_with_no_interactions(user_id):
     """ Возвращает пользователей, с которыми заданный пользователь еще не взаимодействовал. """
     with Session() as session:
         # Получаем ID пользователей, с которыми уже было взаимодействие
-        interacted_users = session.query(reactions_table.c.target_user_id).filter(
-            reactions_table.c.user_id == user_id).union(
-            session.query(reactions_table.c.user_id).filter(reactions_table.c.target_user_id == user_id)
+        interacted_users = session.query(Reaction.target_user_id).filter(
+            Reaction.user_id == user_id).union(
+            session.query(Reaction.user_id).filter(Reaction.target_user_id == user_id)
         ).subquery()
 
         # Запрос к пользователям, которые не в списках взаимодействий
