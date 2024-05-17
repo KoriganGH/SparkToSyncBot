@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import List, Type
 from sqlalchemy import create_engine, Column, BigInteger, String, Integer, LargeBinary, Boolean, DateTime, ForeignKey
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Query
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.dialects.postgresql import ARRAY
 from os import getenv
@@ -24,6 +25,7 @@ class Reaction(Base):
     user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
     target_user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
     reaction = Column(String(10), nullable=False)  # 'like' или 'dislike'
+    created_at = Column(DateTime, default=datetime.now)
 
 
 def add_reaction(user_id, target_user_id, reaction_type) -> bool:
@@ -49,7 +51,7 @@ class Match(Base):
     __tablename__ = 'matches'
     user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
     matched_user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
-    matched_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
 
 
 def check_match(user_id, target_user_id) -> bool:
@@ -172,7 +174,7 @@ def update_user(user: UserProfile) -> bool:
         return False
 
 
-def get_user_first_match(user: UserProfile):
+def get_user_first_match(user: UserProfile) -> Type[UserProfile] | None:
     with Session() as session:
         user = session.merge(user)
         matches = user.matches
@@ -181,7 +183,7 @@ def get_user_first_match(user: UserProfile):
         return None
 
 
-def delete_user_first_match(user: UserProfile):
+def delete_user_first_match(user: UserProfile) -> bool:
     with Session() as session:
         user = session.merge(user)
         del user.matches[0]
@@ -189,37 +191,58 @@ def delete_user_first_match(user: UserProfile):
         return True
 
 
-def get_users_who_liked_first(user_id):
-    """ Возвращает пользователей, которые первыми положительно оценили заданного пользователя """
+def get_query_of_users_who_liked_first(user_id) -> Query:
+    """ Возвращает запрос, содержащий пользователей, которые первыми положительно оценили заданного пользователя """
     with Session() as session:
         users_evaluated_by_user = session.query(Reaction.target_user_id).filter(
             Reaction.user_id == user_id
         ).subquery()
 
-        query = session.query(UserProfile).join(
+        query_users = session.query(UserProfile).join(
             Reaction, UserProfile.id == Reaction.user_id
         ).filter(
             Reaction.target_user_id == user_id,
             Reaction.reaction == 'like',
             ~UserProfile.id.in_(users_evaluated_by_user)
         )
-        return query.all()
+        return query_users
 
 
-def get_users_with_no_interactions(user_id):
-    """ Возвращает пользователей, с которыми заданный пользователь еще не взаимодействовал """
+def get_query_of_users_with_no_interactions(user_id) -> Query:
+    """ Возвращает запрос содержащий пользователей, с которыми заданный пользователь еще не взаимодействовал """
     with Session() as session:
         interacted_users = session.query(Reaction.target_user_id).filter(
             Reaction.user_id == user_id).union(
             session.query(Reaction.user_id).filter(Reaction.target_user_id == user_id)
         ).subquery()
 
-        available_users = session.query(UserProfile).filter(
+        query_users = session.query(UserProfile).filter(
             UserProfile.id != user_id,
             ~UserProfile.id.in_(interacted_users)
-        ).all()
+        )
 
-        return available_users
+        return query_users
+
+
+def get_filtered_users(users: Query, filters: dict) -> List[UserProfile]:
+    if filters.get('city'):
+        users = users.filter(UserProfile.city.ilike(f"%{filters['city']}%"))
+
+    if filters.get('age'):
+        age_range = filters['age'].split('-')
+        users = users.filter(UserProfile.age >= age_range[0], UserProfile.age <= age_range[1])
+
+    if filters.get('gender'):
+        users = users.filter_by(gender=filters['gender'])
+
+    return users.all()
+
+
+# class Tests(Base):
+#     __tablename__ = 'tests'
+#     user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+#     test_result = Column(String(100), nullable=False)
+#     created_at = Column(DateTime, default=datetime.now)
 
 
 # Создание таблиц
