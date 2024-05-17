@@ -1,4 +1,5 @@
-import telebot
+from telebot import TeleBot
+from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from os import getenv
 from dotenv import load_dotenv
 import db
@@ -6,7 +7,7 @@ import db
 # Загрузка переменных окружения
 load_dotenv()
 TOKEN = getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+bot = TeleBot(TOKEN)
 
 
 class LocalUserProfile:
@@ -41,24 +42,24 @@ def edit_message_markup_with_except(message):
 
 
 @bot.message_handler(commands=['start'])
-def start(message: telebot.types.Message) -> None:
+def start(message: Message) -> None:
     edit_message_markup_with_except(message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup()
     if not db.user_exists(message.from_user.id):
-        button = telebot.types.InlineKeyboardButton("Создать профиль", callback_data="create_profile")
+        button = InlineKeyboardButton("Создать профиль", callback_data="create_profile")
         keyboard.add(button)
 
         bot.send_message(message.chat.id, "Добро пожаловать!\nДля продолжения работы с ботом вам необходимо "
                                           "создать профиль", reply_markup=keyboard)
     else:
-        button = telebot.types.InlineKeyboardButton("Мой профиль", callback_data="profile")
+        button = InlineKeyboardButton("Мой профиль", callback_data="profile")
         keyboard.add(button)
         bot.send_message(message.chat.id, "Добро пожаловать!", reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'create_profile')
-def create_profile(callback: telebot.types.CallbackQuery) -> None:
+def create_profile(callback: CallbackQuery) -> None:
     if db.user_exists(callback.message.from_user.id):
         return
 
@@ -80,7 +81,7 @@ def create_profile(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback == 'show_name')
-def show_name(callback: telebot.types.CallbackQuery) -> None:
+def show_name(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -93,9 +94,9 @@ def show_name(callback: telebot.types.CallbackQuery) -> None:
 
     edit_message_markup_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_name")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_gender")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить", callback_data="get_name")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="show_gender")
     keyboard.add(edit_button, next_step_button)
 
     if callback.message.text.startswith("Добро"):
@@ -109,7 +110,7 @@ def show_name(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_name'))
-def get_name(callback: telebot.types.CallbackQuery, error=None) -> None:
+def get_name(callback: CallbackQuery, error=None) -> None:
     edit_message_markup_with_except(callback.message)
 
     if callback.message.text.startswith("Добро"):
@@ -125,7 +126,7 @@ def get_name(callback: telebot.types.CallbackQuery, error=None) -> None:
     bot.register_next_step_handler(callback.message, set_name, callback)
 
 
-def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
+def set_name(message: Message, callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -149,7 +150,7 @@ def set_name(message: telebot.types.Message, callback: telebot.types.CallbackQue
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_gender")
-def show_gender(callback: telebot.types.CallbackQuery) -> None:
+def show_gender(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -162,9 +163,9 @@ def show_gender(callback: telebot.types.CallbackQuery) -> None:
 
     edit_message_markup_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="choose_gender")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_age")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить", callback_data="choose_gender")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="show_age")
     keyboard.add(edit_button, next_step_button)
 
     try:
@@ -175,14 +176,14 @@ def show_gender(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('choose_gender'))
-def choose_gender(callback: telebot.types.CallbackQuery) -> None:
+def choose_gender(callback: CallbackQuery) -> None:
     temp_callback_data = ""
     if callback.data.endswith('once'):
         temp_callback_data = "once"
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    button = telebot.types.InlineKeyboardButton("Мужчина", callback_data="set_gender_" + temp_callback_data + "m")
-    button_2 = telebot.types.InlineKeyboardButton("Женщина", callback_data="set_gender_" + temp_callback_data + "w")
+    keyboard = InlineKeyboardMarkup()
+    button = InlineKeyboardButton("Мужчина", callback_data="set_gender_" + temp_callback_data + "m")
+    button_2 = InlineKeyboardButton("Женщина", callback_data="set_gender_" + temp_callback_data + "w")
     keyboard.add(button, button_2)
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
@@ -192,7 +193,7 @@ def choose_gender(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('set_gender'))
-def set_gender(callback: telebot.types.CallbackQuery) -> None:
+def set_gender(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -213,7 +214,7 @@ def set_gender(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'show_age')
-def show_age(callback: telebot.types.CallbackQuery) -> None:
+def show_age(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -226,9 +227,9 @@ def show_age(callback: telebot.types.CallbackQuery) -> None:
 
     edit_message_markup_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_age")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_city")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить", callback_data="get_age")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="show_city")
     keyboard.add(edit_button, next_step_button)
 
     try:
@@ -239,7 +240,7 @@ def show_age(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_age'))
-def get_age(callback: telebot.types.CallbackQuery, error=None) -> None:
+def get_age(callback: CallbackQuery, error=None) -> None:
     edit_message_markup_with_except(callback.message)
 
     _message_text = "Напишите свой возраст:" if not error else "Напишите свой возраст корректно:"
@@ -253,7 +254,7 @@ def get_age(callback: telebot.types.CallbackQuery, error=None) -> None:
     bot.register_next_step_handler(callback.message, set_age, callback)
 
 
-def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
+def set_age(message: Message, callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -283,7 +284,7 @@ def set_age(message: telebot.types.Message, callback: telebot.types.CallbackQuer
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'show_city')
-def show_city(callback: telebot.types.CallbackQuery) -> None:
+def show_city(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -296,9 +297,9 @@ def show_city(callback: telebot.types.CallbackQuery) -> None:
 
     edit_message_markup_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_city")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_about")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить", callback_data="get_city")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="show_about")
     keyboard.add(edit_button, next_step_button)
 
     try:
@@ -309,7 +310,7 @@ def show_city(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_city'))
-def get_city(callback: telebot.types.CallbackQuery, error=None) -> None:
+def get_city(callback: CallbackQuery, error=None) -> None:
     edit_message_markup_with_except(callback.message)
 
     try:
@@ -321,7 +322,7 @@ def get_city(callback: telebot.types.CallbackQuery, error=None) -> None:
     bot.register_next_step_handler(callback.message, set_city, callback)
 
 
-def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
+def set_city(message: Message, callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -345,7 +346,7 @@ def set_city(message: telebot.types.Message, callback: telebot.types.CallbackQue
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'show_about')
-def show_about(callback: telebot.types.CallbackQuery) -> None:
+def show_about(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -358,9 +359,9 @@ def show_about(callback: telebot.types.CallbackQuery) -> None:
 
     edit_message_markup_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_about")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_hobbies")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить", callback_data="get_about")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="show_hobbies")
     keyboard.add(edit_button, next_step_button)
 
     try:
@@ -371,7 +372,7 @@ def show_about(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_about'))
-def get_about(callback: telebot.types.CallbackQuery, error=None) -> None:
+def get_about(callback: CallbackQuery, error=None) -> None:
     edit_message_markup_with_except(callback.message)
 
     try:
@@ -383,7 +384,7 @@ def get_about(callback: telebot.types.CallbackQuery, error=None) -> None:
     bot.register_next_step_handler(callback.message, set_about, callback)
 
 
-def set_about(message: telebot.types.Message, callback: telebot.types.CallbackQuery) -> None:
+def set_about(message: Message, callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -412,7 +413,7 @@ def set_about(message: telebot.types.Message, callback: telebot.types.CallbackQu
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_hobbies")
-def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
+def show_hobbies(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -425,9 +426,9 @@ def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
 
     edit_message_markup_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Добавить/Удалить", callback_data="choose_hobbies")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="show_photo_registration")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Добавить/Удалить", callback_data="choose_hobbies")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="show_photo_registration")
     keyboard.add(edit_button, next_step_button)
 
     try:
@@ -440,17 +441,17 @@ def show_hobbies(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('choose_hobbies'))
-def choose_hobbies(callback: telebot.types.CallbackQuery) -> None:
+def choose_hobbies(callback: CallbackQuery) -> None:
     temp_callback_data = ""
     if callback.data.endswith('once'):
         temp_callback_data = "once"
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup()
     hobbies = ["Спорт", "Творчество", "Природа", "Кулинария", "Гейминг", "Путешествия", "Технологии", "Духовность",
                "Коллекционирование"]
     buttons = []
     for hobby in hobbies:
-        button = telebot.types.InlineKeyboardButton(hobby, callback_data=f"set_hobbies_{temp_callback_data}/{hobby}")
+        button = InlineKeyboardButton(hobby, callback_data=f"set_hobbies_{temp_callback_data}/{hobby}")
         buttons.append(button)
     keyboard.add(*buttons)
 
@@ -463,7 +464,7 @@ def choose_hobbies(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('set_hobbies'))
-def set_hobbies(callback: telebot.types.CallbackQuery) -> None:
+def set_hobbies(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -492,7 +493,7 @@ def set_hobbies(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('show_photo'))
-def show_photo(callback: telebot.types.CallbackQuery) -> None:
+def show_photo(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -507,22 +508,22 @@ def show_photo(callback: telebot.types.CallbackQuery) -> None:
 
     if callback.data.endswith('registration'):
         user = users.get(callback.from_user.id)
-        if user is not None:
+        if user:
             response = db.add_user(user)
             if response is False:
                 start(callback.message)
         else:
             start(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    edit_button = telebot.types.InlineKeyboardButton("Изменить", callback_data="get_photo")
-    next_step_button = telebot.types.InlineKeyboardButton("Далее", callback_data="profile")
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить", callback_data="get_photo")
+    next_step_button = InlineKeyboardButton("Далее", callback_data="profile")
     keyboard.add(edit_button, next_step_button)
     bot.send_photo(callback.message.chat.id, user.photo, caption="Фото профиля", reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('get_photo'))
-def get_photo(callback: telebot.types.CallbackQuery) -> None:
+def get_photo(callback: CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
 
     try:
@@ -534,7 +535,7 @@ def get_photo(callback: telebot.types.CallbackQuery) -> None:
     bot.register_next_step_handler(callback.message, set_photo, callback, temp_message)
 
 
-def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQuery, temp_message) -> None:
+def set_photo(message: Message, callback: CallbackQuery, temp_message) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
@@ -565,7 +566,7 @@ def set_photo(message: telebot.types.Message, callback: telebot.types.CallbackQu
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'profile')
-def profile(callback: telebot.types.CallbackQuery) -> None:
+def profile(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         return
@@ -573,22 +574,23 @@ def profile(callback: telebot.types.CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
     delete_message_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    button = telebot.types.InlineKeyboardButton("Изменить", callback_data="edit_profile")
-    search_button = telebot.types.InlineKeyboardButton("Поиск", callback_data="search")
-    tests_button = telebot.types.InlineKeyboardButton("Тесты", callback_data="tests")
-    match_button = telebot.types.InlineKeyboardButton("Мэтчи", callback_data="matches")
-    keyboard.add(button, search_button, tests_button, match_button)
+    keyboard = InlineKeyboardMarkup()
+    edit_button = InlineKeyboardButton("Изменить ✏️️", callback_data="edit_profile")
+    tests_button = InlineKeyboardButton("Тесты 📝", callback_data="tests")
+    match_button = InlineKeyboardButton("Мэтчи 🙋", callback_data="matches")
+    search_button = InlineKeyboardButton("Поиск 🔍", callback_data="search")
+    keyboard.add(edit_button, tests_button, match_button, search_button)
 
-    if user.photo is not None:
+    if user.photo:
         bot.send_photo(callback.message.chat.id, user.photo, f"{user}", reply_markup=keyboard, parse_mode="HTML")
     else:
-        # todo добавить обязательную установку фото
-        bot.send_message(callback.message.chat.id, f"У вас нет фото :(\nВаш профиль:\n{user}", reply_markup=keyboard)
+        callback.data = 'get_photo_once'
+        get_photo(callback)
+        # bot.send_message(callback.message.chat.id, f"У вас нет фото :(\nВаш профиль:\n{user}", reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'edit_profile')
-def edit_profile(callback: telebot.types.CallbackQuery) -> None:
+def edit_profile(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         return
@@ -596,31 +598,32 @@ def edit_profile(callback: telebot.types.CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
     delete_message_with_except(callback.message)
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    name_button = telebot.types.InlineKeyboardButton("Имя", callback_data="get_name_once")
-    gender_button = telebot.types.InlineKeyboardButton("Пол", callback_data="choose_gender_once")
-    age_button = telebot.types.InlineKeyboardButton("Возраст", callback_data="get_age_once")
-    city_button = telebot.types.InlineKeyboardButton("Город", callback_data="get_city_once")
-    about_button = telebot.types.InlineKeyboardButton("О себе", callback_data="get_about_once")
-    hobbies_button = telebot.types.InlineKeyboardButton("Хобби", callback_data="choose_hobbies_once")
-    photo_button = telebot.types.InlineKeyboardButton("Фото", callback_data="get_photo_once")
+    keyboard = InlineKeyboardMarkup()
+    name_button = InlineKeyboardButton("Имя", callback_data="get_name_once")
+    gender_button = InlineKeyboardButton("Пол", callback_data="choose_gender_once")
+    age_button = InlineKeyboardButton("Возраст", callback_data="get_age_once")
+    city_button = InlineKeyboardButton("Город", callback_data="get_city_once")
+    about_button = InlineKeyboardButton("О себе", callback_data="get_about_once")
+    hobbies_button = InlineKeyboardButton("Хобби", callback_data="choose_hobbies_once")
+    photo_button = InlineKeyboardButton("Фото", callback_data="get_photo_once")
     keyboard.add(name_button, gender_button, age_button, city_button, about_button, hobbies_button, photo_button)
 
     bot.send_message(callback.message.chat.id, 'Выберете поле для редактирования', reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith('search'))
-def search(callback: telebot.types.CallbackQuery) -> None:
+def search(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         return
     edit_message_markup_with_except(callback.message)
-    keyboard = telebot.types.InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup(row_width=1)
     if callback.data == 'search':
-        basic_mode_button = telebot.types.InlineKeyboardButton("Обычный", callback_data="search_basic_mode")
-        business_mode_button = telebot.types.InlineKeyboardButton("Премиум [недоступен]",
+        basic_mode_button = InlineKeyboardButton("Обычный", callback_data="search_basic_mode")
+        extended_mode_button = InlineKeyboardButton("Расширенный", callback_data="!search_extended_mode")
+        business_mode_button = InlineKeyboardButton("Премиум 💎 [недоступен]",
                                                                   callback_data="!search_premium_mode")
-        keyboard.add(basic_mode_button, business_mode_button)
+        keyboard.add(basic_mode_button, extended_mode_button, business_mode_button)
         try:
             bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
                                   text="Выберете режим поиска", reply_markup=keyboard)
@@ -630,11 +633,13 @@ def search(callback: telebot.types.CallbackQuery) -> None:
 
     elif callback.data == 'search_basic_mode':
         basic_search(callback)
+    elif callback.data == 'search_extended_mode':
+        extended_search(callback)
     elif callback.data == 'search_premium_mode':
         premium_search(callback)
 
 
-def basic_search(callback: telebot.types.CallbackQuery) -> None:
+def basic_search(callback: CallbackQuery) -> None:
     available_users = db.get_users_who_liked_first(callback.from_user.id)
     if not available_users:
         available_users = db.get_users_with_no_interactions(callback.from_user.id)
@@ -647,11 +652,15 @@ def basic_search(callback: telebot.types.CallbackQuery) -> None:
         profile(callback)
 
 
-def premium_search(callback: telebot.types.CallbackQuery) -> None:
+def extended_search(callback: CallbackQuery) -> None:
     pass
 
 
-def send_next_profile(callback: telebot.types.CallbackQuery) -> None:
+def premium_search(callback: CallbackQuery) -> None:
+    pass
+
+
+def send_next_profile(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id
     if not current_user_index.get(user_id):
         basic_search(callback)
@@ -663,11 +672,11 @@ def send_next_profile(callback: telebot.types.CallbackQuery) -> None:
 
     if index < len(available_users):
         user = available_users[index]
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        like_button = telebot.types.InlineKeyboardButton(text="👍", callback_data=f'reaction_{user.id}_like')
-        dislike_button = telebot.types.InlineKeyboardButton(text="👎", callback_data=f'reaction_{user.id}_dislike')
-        stop_button = telebot.types.InlineKeyboardButton(text="Выход", callback_data='profile')
-        keyboard.add(like_button, stop_button, dislike_button)
+        keyboard = InlineKeyboardMarkup(row_width=2)
+        like_button = InlineKeyboardButton(text="👍", callback_data=f'reaction_{user.id}_like')
+        dislike_button = InlineKeyboardButton(text="👎", callback_data=f'reaction_{user.id}_dislike')
+        stop_button = InlineKeyboardButton(text="Выход", callback_data='profile')
+        keyboard.add(like_button, dislike_button, stop_button)
 
         if user.photo:
             bot.send_photo(callback.message.chat.id, user.photo, f"{user}", reply_markup=keyboard, parse_mode="HTML")
@@ -679,7 +688,7 @@ def send_next_profile(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reaction_'))
-def handle_reaction(callback: telebot.types.CallbackQuery) -> None:
+def handle_reaction(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id
     target_user_id = int(callback.data.split('_')[1])
     reaction_type = callback.data.split('_')[2]
@@ -690,10 +699,10 @@ def handle_reaction(callback: telebot.types.CallbackQuery) -> None:
         if reaction_type == 'like' and db.check_match(user_id, target_user_id):
             delete_message_with_except(callback.message)
             bot.answer_callback_query(callback.id, "У вас МЭТЧ!", show_alert=True)
-            send_match_info(user_id, target_user_id)
-            send_match_info(target_user_id, user_id)
             db.add_match(user_id, target_user_id)
             db.add_match(target_user_id, user_id)
+            send_match_info(user_id, target_user_id)
+            send_match_info(target_user_id, user_id)
             return
         else:
             bot.answer_callback_query(callback.id, "Вы успешно оценили профиль!")
@@ -712,10 +721,10 @@ def handle_reaction(callback: telebot.types.CallbackQuery) -> None:
 
 def send_match_info(user_id, target_user_id) -> None:
     try:
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        accept_button = telebot.types.InlineKeyboardButton(text="Отправить контакт",
+        keyboard = InlineKeyboardMarkup()
+        accept_button = InlineKeyboardButton(text="Отправить контакт",
                                                            callback_data=f"match_{target_user_id}_accept")
-        decline_button = telebot.types.InlineKeyboardButton(text="Отложить", callback_data="match_decline")
+        decline_button = InlineKeyboardButton(text="Отложить", callback_data="match_decline")
         keyboard.add(accept_button, decline_button)
         user = db.return_user_profile(target_user_id)
         bot.send_photo(user_id, user.photo, f"У вас новый мэтч!\n{user}", parse_mode="HTML", reply_markup=keyboard)
@@ -724,7 +733,7 @@ def send_match_info(user_id, target_user_id) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('match_'))
-def handle_match_reaction(callback: telebot.types.CallbackQuery) -> None:
+def handle_match_reaction(callback: CallbackQuery) -> None:
     delete_message_with_except(callback.message)
     target_user_id = callback.data.split('_')[1]
     if callback.data.endswith('accept'):
@@ -734,10 +743,11 @@ def handle_match_reaction(callback: telebot.types.CallbackQuery) -> None:
                            f"{user}\n\nВам пришло приглашение в ЛС\nhttps://t.me/{callback.from_user.username}",
                            parse_mode="HTML")
             bot.answer_callback_query(callback.id, "Вы успешно отправили свой контакт")
+            db.delete_user_first_match(user)
         else:
             bot.answer_callback_query(callback.id, "Ошибка, у вас нет telegram username", show_alert=True)
     elif callback.data.endswith('match_decline'):
-        bot.answer_callback_query(callback.id, "Вы сможете вернуться к ответу позже")
+        bot.answer_callback_query(callback.id, "Вы сможете вернуться к ответу позже в своём профиле")
 
     if not current_user_index.get(callback.from_user.id):
         basic_search(callback)
@@ -749,14 +759,13 @@ def handle_match_reaction(callback: telebot.types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('matches'))
-def show_matches(callback: telebot.types.CallbackQuery) -> None:
+def show_matches(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.return_user_profile(callback.from_user.id)
     if not user:
         return
     match = db.get_user_first_match(user)
     if not match:
         bot.answer_callback_query(callback.id, "У вас пока нет новый мэтчей")
-        profile(callback)
         return
     matched_user = match
     if not matched_user or callback.data == "matches_delete":
@@ -764,7 +773,7 @@ def show_matches(callback: telebot.types.CallbackQuery) -> None:
         show_matches(callback)
         return
     if callback.data == "matches_send":
-        # todo DRY
+        # todo fix DRY
         if callback.from_user.username:
             user = db.return_user_profile(callback.from_user.id)
             bot.send_photo(matched_user.id, user.photo,
@@ -779,15 +788,16 @@ def show_matches(callback: telebot.types.CallbackQuery) -> None:
             profile(callback)
             return
 
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    send_button = telebot.types.InlineKeyboardButton(text="Отправить контакт", callback_data="matches_send")
-    delete_button = telebot.types.InlineKeyboardButton(text="Отменить/удалить", callback_data="matches_delete")
+    keyboard = InlineKeyboardMarkup()
+    send_button = InlineKeyboardButton(text="Отправить контакт 👋", callback_data="matches_send")
+    delete_button = InlineKeyboardButton(text="Удалить навсегда ❌", callback_data="matches_delete")
     keyboard.add(send_button, delete_button)
-    bot.send_photo(callback.from_user.id, matched_user.photo, f"У вас мэтч!\n{matched_user}", reply_markup=keyboard, parse_mode='HTML')
+    bot.send_photo(callback.from_user.id, matched_user.photo, f"У вас мэтч! 🔥\n{matched_user}", reply_markup=keyboard,
+                   parse_mode='HTML')
 
 
 @bot.message_handler(content_types=['text'])
-def text(message: telebot.types.Message) -> None:
+def text(message: Message) -> None:
     start(message)
 
 

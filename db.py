@@ -1,6 +1,5 @@
 from datetime import datetime
-from sqlalchemy import create_engine, Column, BigInteger, String, Integer, LargeBinary, Boolean, DateTime, ForeignKey, \
-    Table, func
+from sqlalchemy import create_engine, Column, BigInteger, String, Integer, LargeBinary, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -105,12 +104,12 @@ class UserProfile(Base):
 
     def __str__(self):
         return (
-            f"<b>|Имя| </b>{self.name or 'не указано'}\n"
-            f"<b>|Пол| </b>{self.gender or 'не указан'}\n"
-            f"<b>|Возраст| </b>{self.age or 'не указан'}\n"
-            f"<b>|Город| </b>{self.city or 'не указан'}\n"
-            f"<b>|О себе| </b>{self.about or 'не указано'}\n"
-            f"<b>|Хобби| </b>{', '.join(self.hobbies) if self.hobbies else 'не указаны'}"
+            f"<b>Имя | </b>{self.name or 'не указано'}\n"
+            f"<b>Пол | </b>{self.gender or 'не указан'}\n"
+            f"<b>Возраст | </b>{self.age or 'не указан'}\n"
+            f"<b>Город | </b>{self.city or 'не указан'}\n"
+            f"<b>О себе | </b>{self.about or 'не указано'}\n"
+            f"<b>Хобби | </b>{', '.join(self.hobbies) if self.hobbies else 'не указаны'}"
         )
 
 
@@ -191,16 +190,12 @@ def delete_user_first_match(user: UserProfile):
 
 
 def get_users_who_liked_first(user_id):
-    """ Возвращает пользователей, которые лайкнули заданного пользователя,
-    при этом сам пользователь не оценивал этих пользователей. """
+    """ Возвращает пользователей, которые первыми положительно оценили заданного пользователя """
     with Session() as session:
-        # Подзапрос для получения ID пользователей, которых оценивал заданный пользователь
         users_evaluated_by_user = session.query(Reaction.target_user_id).filter(
             Reaction.user_id == user_id
         ).subquery()
 
-        # Основной запрос для получения пользователей, которые лайкнули заданного пользователя,
-        # при этом сам пользователь не оценивал этих пользователей
         query = session.query(UserProfile).join(
             Reaction, UserProfile.id == Reaction.user_id
         ).filter(
@@ -212,15 +207,13 @@ def get_users_who_liked_first(user_id):
 
 
 def get_users_with_no_interactions(user_id):
-    """ Возвращает пользователей, с которыми заданный пользователь еще не взаимодействовал. """
+    """ Возвращает пользователей, с которыми заданный пользователь еще не взаимодействовал """
     with Session() as session:
-        # Получаем ID пользователей, с которыми уже было взаимодействие
         interacted_users = session.query(Reaction.target_user_id).filter(
             Reaction.user_id == user_id).union(
             session.query(Reaction.user_id).filter(Reaction.target_user_id == user_id)
         ).subquery()
 
-        # Запрос к пользователям, которые не в списках взаимодействий
         available_users = session.query(UserProfile).filter(
             UserProfile.id != user_id,
             ~UserProfile.id.in_(interacted_users)
