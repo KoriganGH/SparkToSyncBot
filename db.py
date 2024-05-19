@@ -19,12 +19,11 @@ Session = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
-# Таблица для связи реакций
 class Reaction(Base):
-    __tablename__ = 'reactions'
-    user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
-    target_user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
-    reaction = Column(String(10), nullable=False)  # 'like' или 'dislike'
+    __tablename__ = "reactions"
+    user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
+    target_user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
+    reaction = Column(String(10), nullable=False)  # "like" или "dislike"
     created_at = Column(DateTime, default=datetime.now)
 
 
@@ -48,21 +47,10 @@ def add_reaction(user_id, target_user_id, reaction_type) -> bool:
 
 
 class Match(Base):
-    __tablename__ = 'matches'
-    user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
-    matched_user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+    __tablename__ = "matches"
+    user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
+    matched_user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
     created_at = Column(DateTime, default=datetime.now)
-
-
-def check_match(user_id, target_user_id) -> bool:
-    with Session() as session:
-        match = session.query(Reaction).filter_by(
-            user_id=target_user_id,
-            target_user_id=user_id,
-            reaction='like'
-        ).first()
-
-        return match is not None
 
 
 def add_match(user_id, matched_user_id):
@@ -75,9 +63,19 @@ def add_match(user_id, matched_user_id):
         session.commit()
 
 
-# Модель профиля пользователя
+def check_match(user_id, target_user_id) -> bool:
+    with Session() as session:
+        match = session.query(Reaction).filter_by(
+            user_id=target_user_id,
+            target_user_id=user_id,
+            reaction="like"
+        ).first()
+
+        return match is not None
+
+
 class UserProfile(Base):
-    __tablename__ = 'users4'
+    __tablename__ = "users4"
     id = Column(BigInteger, primary_key=True)
     name = Column(String(100), nullable=False)
     age = Column(Integer, nullable=False)
@@ -90,15 +88,15 @@ class UserProfile(Base):
     premium = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     reactions = relationship(
-        'UserProfile',
-        secondary='reactions',
+        "UserProfile",
+        secondary="reactions",
         primaryjoin=id == Reaction.user_id,
         secondaryjoin=id == Reaction.target_user_id,
         backref="reacted_by"
     )
     matches = relationship(
-        'UserProfile',
-        secondary='matches',
+        "UserProfile",
+        secondary="matches",
         primaryjoin=id == Match.user_id,
         secondaryjoin=id == Match.matched_user_id,
         backref="matched_with"
@@ -110,9 +108,20 @@ class UserProfile(Base):
             f"<b>Пол | </b>{self.gender or 'не указан'}\n"
             f"<b>Возраст | </b>{self.age or 'не указан'}\n"
             f"<b>Город | </b>{self.city or 'не указан'}\n"
-            f"<b>О себе | </b>{self.about or 'не указано'}\n"
-            f"<b>Хобби | </b>{', '.join(self.hobbies) if self.hobbies else 'не указаны'}"
+            f"<b>Хобби | </b>{', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
+            f"<b>О себе | </b>{self.about or 'не указано'}"
         )
+
+    def __repr__(self):
+        return (
+            f"Имя: {self.name or 'не указано'}\n"
+            f"Пол: {self.gender or 'не указан'}\n"
+            f"Возраст: {self.age or 'не указан'}\n"
+            f"Город: {self.city or 'не указан'}\n"
+            f"Хобби: {', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
+            f"О себе: {self.about or 'не указано'}"
+        )
+
 
 
 # Функции утилиты базы данных
@@ -202,7 +211,7 @@ def get_query_of_users_who_liked_first(user_id) -> Query:
             Reaction, UserProfile.id == Reaction.user_id
         ).filter(
             Reaction.target_user_id == user_id,
-            Reaction.reaction == 'like',
+            Reaction.reaction == "like",
             ~UserProfile.id.in_(users_evaluated_by_user)
         )
         return query_users
@@ -225,22 +234,22 @@ def get_query_of_users_with_no_interactions(user_id) -> Query:
 
 
 def get_filtered_users(users: Query, filters: dict) -> List[UserProfile]:
-    if filters.get('city'):
+    if filters.get("city"):
         users = users.filter(UserProfile.city.ilike(f"%{filters['city']}%"))
 
-    if filters.get('age'):
-        age_range = filters['age'].split('-')
+    if filters.get("age"):
+        age_range = filters["age"].split("-")
         users = users.filter(UserProfile.age >= age_range[0], UserProfile.age <= age_range[1])
 
-    if filters.get('gender'):
-        users = users.filter_by(gender=filters['gender'])
+    if filters.get("gender"):
+        users = users.filter_by(gender=filters["gender"])
 
     return users.all()
 
 
 # class Tests(Base):
-#     __tablename__ = 'tests'
-#     user_id = Column(BigInteger, ForeignKey('users4.id'), primary_key=True)
+#     __tablename__ = "tests"
+#     user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
 #     test_result = Column(String(100), nullable=False)
 #     created_at = Column(DateTime, default=datetime.now)
 
