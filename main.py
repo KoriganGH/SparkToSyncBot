@@ -1,14 +1,9 @@
-from telebot import TeleBot
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from os import getenv
-from dotenv import load_dotenv
 import db
 import neural_networks
-
-# Загрузка переменных окружения
-load_dotenv()
-TOKEN = getenv("BOT_TOKEN")
-bot = TeleBot(TOKEN)
+from config import bot
+from utils import edit_message_markup_with_except, delete_message_with_except
+import admin
 
 
 class LocalUserProfile:
@@ -28,20 +23,6 @@ users: dict = {}
 current_user_index: dict = {}
 search_filters: dict = {}
 match_percent: dict = {}
-
-
-def delete_message_with_except(message):
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
-
-
-def edit_message_markup_with_except(message):
-    try:
-        bot.edit_message_reply_markup(message.chat.id, message.message_id)
-    except:
-        pass
 
 
 @bot.message_handler(commands=["start"])
@@ -67,8 +48,9 @@ def create_profile(callback: CallbackQuery) -> None:
     if db.user_exists(callback.message.from_user.id):
         return
 
-    bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                          text="Вы перешли в раздел создания профиля, следуйте инструкциям:")
+    bot.answer_callback_query(callback.id, "Вы перешли в раздел создания профиля, следуйте инструкциям в чате",
+                              show_alert=True)
+    delete_message_with_except(callback.message)
 
     user_profile_photos = bot.get_user_profile_photos(callback.from_user.id)
     if user_profile_photos.total_count > 0:
@@ -89,7 +71,7 @@ def create_profile(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback == "show_name")
 def show_name(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -134,7 +116,7 @@ def get_name(callback: CallbackQuery, error=None) -> None:
 
 
 def set_name(message: Message, callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -158,7 +140,7 @@ def set_name(message: Message, callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_gender")
 def show_gender(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -201,7 +183,7 @@ def choose_gender(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("set_gender"))
 def set_gender(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -222,7 +204,7 @@ def set_gender(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_age")
 def show_age(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -256,13 +238,13 @@ def get_age(callback: CallbackQuery, error=None) -> None:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
                               text=_message_text)
     except:
-        bot.send_message(callback.message.chat.id, _message_text)
+        pass
 
     bot.register_next_step_handler(callback.message, set_age, callback)
 
 
 def set_age(message: Message, callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -292,7 +274,7 @@ def set_age(message: Message, callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_city")
 def show_city(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -330,7 +312,7 @@ def get_city(callback: CallbackQuery, error=None) -> None:
 
 
 def set_city(message: Message, callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -354,7 +336,7 @@ def set_city(message: Message, callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_about")
 def show_about(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -392,7 +374,7 @@ def get_about(callback: CallbackQuery, error=None) -> None:
 
 
 def set_about(message: Message, callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -421,7 +403,7 @@ def set_about(message: Message, callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "show_hobbies")
 def show_hobbies(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -453,7 +435,7 @@ def choose_hobbies(callback: CallbackQuery) -> None:
     if callback.data.endswith("once"):
         temp_callback_data = "once"
 
-    keyboard = InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup(row_width=2)
     hobbies = ["Спорт", "Творчество", "Природа", "Кулинария", "Гейминг", "Путешествия", "Технологии", "Духовность",
                "Коллекционирование"]
     buttons = []
@@ -464,7 +446,7 @@ def choose_hobbies(callback: CallbackQuery) -> None:
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                              text=f"Выберете свои хобби", reply_markup=keyboard)
+                              text=f"Выберете свои хобби (возможны несколько вариантов)", reply_markup=keyboard)
     except:
         bot.send_message(callback.message.chat.id, f"Выберете свои хобби",
                          reply_markup=keyboard)
@@ -472,7 +454,7 @@ def choose_hobbies(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("set_hobbies"))
 def set_hobbies(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -485,7 +467,10 @@ def set_hobbies(callback: CallbackQuery) -> None:
     if hobby not in user.hobbies:
         user.hobbies.append(hobby)
     else:
-        user.hobbies.remove(hobby)
+        if len(user.hobbies) > 1:
+            user.hobbies.remove(hobby)
+        else:
+            bot.answer_callback_query(callback.id, "Вы не можете удалить единственное хобби.")
 
     # if len(user.hobbies) < 2:
     #     choose_hobbies(callback)
@@ -501,7 +486,7 @@ def set_hobbies(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("show_photo"))
 def show_photo(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -532,18 +517,19 @@ def show_photo(callback: CallbackQuery) -> None:
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("get_photo"))
 def get_photo(callback: CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
+    delete_message_with_except(callback.message)
 
     try:
         temp_message = bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                                             text="Отправьте фото (минимальный размер 400x400)")
+                                             text="Отправьте фото\n(минимальный размер 400x400)")
     except:
-        temp_message = bot.send_message(callback.message.chat.id, "Отправьте фото (минимальный размер 400x400)")
+        temp_message = bot.send_message(callback.message.chat.id, "Отправьте фото\n(минимальный размер 400x400)")
 
     bot.register_next_step_handler(callback.message, set_photo, callback, temp_message)
 
 
 def set_photo(message: Message, callback: CallbackQuery, temp_message) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         user: LocalUserProfile = users.get(callback.from_user.id)
         if not user:
@@ -581,7 +567,7 @@ def set_photo(message: Message, callback: CallbackQuery, temp_message) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data == "profile")
 def profile(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         return
 
@@ -593,7 +579,12 @@ def profile(callback: CallbackQuery) -> None:
     # tests_button = InlineKeyboardButton("Тесты", callback_data="tests")
     match_button = InlineKeyboardButton("Мэтчи 🤝", callback_data="matches")
     search_button = InlineKeyboardButton("Поиск 🔍", callback_data="search")
-    keyboard.add(edit_button, match_button, search_button)
+    if user.verified is None:
+        verify_button = InlineKeyboardButton("Отправить заявку на верификацию", callback_data="verify")
+        keyboard.add(edit_button, match_button, verify_button)
+        keyboard.add(search_button)
+    else:
+        keyboard.add(edit_button, match_button, search_button)
 
     if user.photo:
         bot.send_photo(callback.message.chat.id, user.photo, f"{user}", reply_markup=keyboard, parse_mode="HTML")
@@ -602,12 +593,22 @@ def profile(callback: CallbackQuery) -> None:
         get_photo(callback)
 
 
+@bot.callback_query_handler(func=lambda callback: callback.data == "verify")
+def verify(callback: CallbackQuery) -> None:
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
+    db.add_verification_request(callback.from_user.id)
+    user.verified = False
+    db.update_user(user)
+    bot.answer_callback_query(callback.id, "Заявка успешно подана!")
+    profile(callback)
+
+
 @bot.callback_query_handler(func=lambda callback: callback.data == "edit_profile")
 def edit_profile(callback: CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
     delete_message_with_except(callback.message)
 
-    keyboard = InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup(row_width=2)
     name_button = InlineKeyboardButton("Имя", callback_data="get_name_once")
     gender_button = InlineKeyboardButton("Пол", callback_data="choose_gender_once")
     age_button = InlineKeyboardButton("Возраст", callback_data="get_age_once")
@@ -616,8 +617,8 @@ def edit_profile(callback: CallbackQuery) -> None:
     hobbies_button = InlineKeyboardButton("Хобби", callback_data="choose_hobbies_once")
     photo_button = InlineKeyboardButton("Фото", callback_data="get_photo_once")
     exit_button = InlineKeyboardButton("Выход", callback_data="profile")
-    keyboard.add(name_button, gender_button, age_button, city_button, about_button, hobbies_button, photo_button,
-                 exit_button)
+    keyboard.add(name_button, gender_button, age_button, city_button, about_button, hobbies_button, photo_button)
+    keyboard.add(exit_button)
 
     bot.send_message(callback.message.chat.id, "Выберете поле для редактирования", reply_markup=keyboard)
 
@@ -647,7 +648,8 @@ def search(callback: CallbackQuery) -> None:
         basic_mode_button = InlineKeyboardButton("Обычный", callback_data="search_basic_mode")
         extended_mode_button = InlineKeyboardButton("Расширенный", callback_data="search_extended_mode")
         business_mode_button = InlineKeyboardButton("Премиум 💎", callback_data="search_premium_mode")
-        keyboard.add(basic_mode_button, extended_mode_button, business_mode_button)
+        exit_button = InlineKeyboardButton("Выход", callback_data="profile")
+        keyboard.add(basic_mode_button, extended_mode_button, business_mode_button, exit_button)
         try:
             bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
                                   text="Выберете режим поиска", reply_markup=keyboard)
@@ -676,7 +678,7 @@ def show_filters(callback: CallbackQuery) -> None:
     gender_button = InlineKeyboardButton(text=f"Пол | {filters['gender'] or 'любой'}", callback_data="filter_gender")
     age_button = InlineKeyboardButton(text=f"Возраст | {filters['age'] or 'любой'}", callback_data="filter_age")
     city_button = InlineKeyboardButton(text=f"Город | {filters['city'] or 'любой'}", callback_data="filter_city")
-    stop_button = InlineKeyboardButton(text="Выход", callback_data="profile")
+    stop_button = InlineKeyboardButton(text="Выход", callback_data="search")
     keyboard.add(start_button, gender_button, age_button, city_button, stop_button)
 
     bot.send_message(callback.message.chat.id, "Настройте фильтры:", reply_markup=keyboard)
@@ -684,7 +686,7 @@ def show_filters(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("filter"))
 def set_filters(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
 
     filters = search_filters.get(callback.from_user.id)
     if not filters:
@@ -805,10 +807,10 @@ def extended_search(callback: CallbackQuery) -> None:
 
 
 def premium_search(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
 
     if not user.premium:
-        bot.answer_callback_query(callback.id, "Вам этот режим недоступен. Так как у Вас нет подписки.")
+        bot.answer_callback_query(callback.id, "Вам этот режим недоступен.")
         callback.data = "search"
         search(callback)
         return
@@ -865,13 +867,14 @@ def check_match_percent(callback: CallbackQuery) -> None:
     percents = match_percent[user_id][target_user_id]
 
     if callback.data.endswith("bert"):
-        first_user = db.return_user_profile(user_id)
-        second_user = db.return_user_profile(target_user_id)
-        percents["BERT"] = f"{int(neural_networks.compare_profiles_bert(repr(first_user), repr(second_user))*100)}%"
+        first_user = db.get_user_profile(user_id)
+        second_user = db.get_user_profile(target_user_id)
+        percents["BERT"] = f"{int(neural_networks.compare_profiles_bert(repr(first_user), repr(second_user)) * 100)}%"
     elif callback.data.endswith("google"):
-        first_user = db.return_user_profile(user_id)
-        second_user = db.return_user_profile(target_user_id)
-        percents["GOOGLE"] = f"{int(neural_networks.compare_profiles_google(repr(first_user), repr(second_user))*100)}%"
+        first_user = db.get_user_profile(user_id)
+        second_user = db.get_user_profile(target_user_id)
+        percents[
+            "GOOGLE"] = f"{int(neural_networks.compare_profiles_google(repr(first_user), repr(second_user)) * 100)}%"
     elif callback.data.endswith("gpt"):
         pass
 
@@ -900,8 +903,8 @@ def handle_reaction(callback: CallbackQuery) -> None:
 
     if response is True:
         if reaction_type == "like" and db.check_match(user_id, target_user_id):
-            delete_message_with_except(callback.message)
             bot.answer_callback_query(callback.id, "У вас МЭТЧ!", show_alert=True)
+            delete_message_with_except(callback.message)
             db.add_match(user_id, target_user_id)
             db.add_match(target_user_id, user_id)
             send_match_info(user_id, target_user_id)
@@ -932,7 +935,7 @@ def send_match_info(user_id, target_user_id) -> None:
         accept_button = InlineKeyboardButton(text="Отправить контакт 👋", callback_data=f"match_{target_user_id}_accept")
         decline_button = InlineKeyboardButton(text="Отложить 📦", callback_data="match_decline")
         keyboard.add(accept_button, decline_button)
-        user = db.return_user_profile(target_user_id)
+        user = db.get_user_profile(target_user_id)
         bot.send_photo(user_id, user.photo, f"У вас новый мэтч!\n{user}", parse_mode="HTML", reply_markup=keyboard)
     except Exception as e:
         print(e)
@@ -944,11 +947,11 @@ def handle_match_reaction(callback: CallbackQuery) -> None:
     if callback.data.endswith("accept"):
         if callback.from_user.username:
             target_user_id = callback.data.split("_")[1]
-            user = db.return_user_profile(callback.from_user.id)
+            user = db.get_user_profile(callback.from_user.id)
             bot.send_photo(target_user_id, user.photo,
                            f"{user}\n\nВам пришло приглашение в ЛС\nhttps://t.me/{callback.from_user.username}",
                            parse_mode="HTML")
-            bot.answer_callback_query(callback.id, "Вы успешно отправили свой контакт")
+            bot.answer_callback_query(callback.id, "Вы успешно отправили свой контакт!")
             db.delete_user_first_match(user)
         else:
             bot.answer_callback_query(callback.id, "Ошибка, у вас нет telegram username", show_alert=True)
@@ -970,12 +973,14 @@ def handle_match_reaction(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("matches"))
 def show_matches(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.return_user_profile(callback.from_user.id)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     if not user:
         return
     match = db.get_user_first_match(user)
     if not match:
         bot.answer_callback_query(callback.id, "У вас пока нет новый мэтчей")
+        if "мэтч" in callback.message.caption:
+            profile(callback)
         return
     matched_user = match
     if not matched_user or callback.data == "matches_delete":
@@ -985,7 +990,7 @@ def show_matches(callback: CallbackQuery) -> None:
     if callback.data == "matches_send":
         # todo fix DRY
         if callback.from_user.username:
-            user = db.return_user_profile(callback.from_user.id)
+            user = db.get_user_profile(callback.from_user.id)
             bot.send_photo(matched_user.id, user.photo,
                            f"{user}\n\nВам пришло приглашение в ЛС\nhttps://t.me/{callback.from_user.username}",
                            parse_mode="HTML")
@@ -998,6 +1003,7 @@ def show_matches(callback: CallbackQuery) -> None:
             profile(callback)
             return
 
+    delete_message_with_except(callback.message)
     keyboard = InlineKeyboardMarkup()
     send_button = InlineKeyboardButton(text="Отправить контакт 👋", callback_data="matches_send")
     delete_button = InlineKeyboardButton(text="Удалить навсегда ❌", callback_data="matches_delete")

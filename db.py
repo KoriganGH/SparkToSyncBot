@@ -86,6 +86,7 @@ class UserProfile(Base):
     photo = Column(LargeBinary, nullable=False)
     hobbies = Column(MutableList.as_mutable(ARRAY(String)), nullable=False)
     premium = Column(Boolean, default=False, nullable=False)
+    verified = Column(Boolean, default=None)
     created_at = Column(DateTime, default=datetime.now)
     reactions = relationship(
         "UserProfile",
@@ -109,7 +110,8 @@ class UserProfile(Base):
             f"<b>Возраст | </b>{self.age or 'не указан'}\n"
             f"<b>Город | </b>{self.city or 'не указан'}\n"
             f"<b>Хобби | </b>{', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
-            f"<b>О себе | </b>{self.about or 'не указано'}"
+            f"<b>О себе | </b>{self.about or 'не указано'}\n"
+            f"{'<b>Профиль верифицирован</b>' if self.verified else ''}"
         )
 
     def __repr__(self):
@@ -119,9 +121,9 @@ class UserProfile(Base):
             f"Возраст: {self.age or 'не указан'}\n"
             f"Город: {self.city or 'не указан'}\n"
             f"Хобби: {', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
-            f"О себе: {self.about or 'не указано'}"
+            f"О себе: {self.about or 'не указано'}\n"
+            f"{'Профиль верифицирован' if self.verified else ''}"
         )
-
 
 
 # Функции утилиты базы данных
@@ -153,7 +155,7 @@ def user_exists(user_id) -> bool:
         return session.query(UserProfile).filter_by(id=user_id).first() is not None
 
 
-def return_user_profile(user_id):
+def get_user_profile(user_id):
     with Session() as session:
         return session.query(UserProfile).filter_by(id=user_id).first()
 
@@ -247,6 +249,44 @@ def get_filtered_users(users: Query, filters: dict) -> List[UserProfile]:
     return users.all()
 
 
+class VerificationRequest(Base):
+    __tablename__ = "verification_requests"
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users4.id"), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")  # Статус: "pending", "approved", "rejected"
+    request_date = Column(DateTime, default=datetime.now)
+    review_date = Column(DateTime)
+    reviewed_by = Column(String(100))
+
+    user = relationship("UserProfile", backref="verification_requests")
+
+
+def add_verification_request(user_id):
+    with Session() as session:
+        verification_request = VerificationRequest(user_id=user_id)
+        session.add(verification_request)
+        session.commit()
+
+
+def update_verification_request(request_id, status, reviewed_by):
+    with Session() as session:
+        request = session.query(VerificationRequest).filter_by(id=request_id).first()
+        if request:
+            request.status = status
+            request.review_date = datetime.now()
+            request.reviewed_by = reviewed_by
+            if status == "approved":
+                user = session.query(UserProfile).filter_by(id=request.user_id).first()
+                user.verified = True
+            session.commit()
+
+
+def get_pending_verification_requests():
+    with Session() as session:
+        requests = session.query(VerificationRequest).filter_by(status='pending').all()
+    return requests
+
+
 # class Tests(Base):
 #     __tablename__ = "tests"
 #     user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
@@ -254,5 +294,4 @@ def get_filtered_users(users: Query, filters: dict) -> List[UserProfile]:
 #     created_at = Column(DateTime, default=datetime.now)
 
 
-# Создание таблиц
 Base.metadata.create_all(engine)
