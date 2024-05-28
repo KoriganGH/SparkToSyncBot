@@ -105,7 +105,7 @@ class UserProfile(Base):
             f"<b>Город | </b>{self.city or 'не указан'}\n"
             f"<b>Хобби | </b>{', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
             f"<b>О себе | </b>{self.about or 'не указано'}\n"
-            f"{'<b>Профиль верифицирован</b>' if self.verified else ''}"
+            f"{'<b>Профиль верифицирован </b>✅' if self.verified else ''}"
         )
 
     def __repr__(self):

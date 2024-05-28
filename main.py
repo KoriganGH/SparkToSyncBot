@@ -1,9 +1,10 @@
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 import db
-from neural_networks import compare_profiles_sbert, compare_profiles_use, personality_classification
+from neural_networks import compare_profiles_sbert, compare_profiles_use, compare_profiles_gpt, personality_classification
 from config import bot
 from utils import edit_message_markup_with_except, delete_message_with_except, translate_ru_to_eng
 import admin
+import payment
 
 
 class LocalUserProfile:
@@ -576,16 +577,17 @@ def profile(callback: CallbackQuery) -> None:
     delete_message_with_except(callback.message)
 
     keyboard = InlineKeyboardMarkup(row_width=2)
-    edit_button = InlineKeyboardButton("Изменить 📝️️", callback_data="edit_profile")
+    edit_button = InlineKeyboardButton("Изменить профиль 📝️️", callback_data="edit_profile")
     # tests_button = InlineKeyboardButton("Тесты", callback_data="tests")
     match_button = InlineKeyboardButton("Мэтчи 🤝", callback_data="matches")
-    search_button = InlineKeyboardButton("Поиск 🔍", callback_data="search")
+    search_button = InlineKeyboardButton("Начать поиск 🔍", callback_data="search")
     if user.verified is None:
-        verify_button = InlineKeyboardButton("Отправить заявку на верификацию", callback_data="verify")
-        keyboard.add(edit_button, match_button, verify_button)
-        keyboard.add(search_button)
-    else:
-        keyboard.add(edit_button, match_button, search_button)
+        verify_button = InlineKeyboardButton("Запросить верификацию профиля 📄", callback_data="verify")
+        keyboard.add(verify_button)
+    if not user.premium:
+        buy_button = InlineKeyboardButton("Приобрести премиум статус 💎", callback_data="buy")
+        keyboard.add(buy_button)
+    keyboard.add(edit_button, match_button, search_button)
 
     if user.photo:
         bot.send_photo(callback.message.chat.id, user.photo, f"{user}", reply_markup=keyboard, parse_mode="HTML")
@@ -600,7 +602,7 @@ def verify(callback: CallbackQuery) -> None:
     db.add_verification_request(callback.from_user.id)
     user.verified = False
     db.update_user(user)
-    bot.answer_callback_query(callback.id, "Заявка успешно подана!")
+    bot.answer_callback_query(callback.id, "Заявка успешно подана! Она будет рассмотрена в течение 24 часов.", show_alert=True)
     profile(callback)
 
 
@@ -811,7 +813,7 @@ def premium_search(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.get_user_profile(callback.from_user.id)
 
     if not user.premium:
-        bot.answer_callback_query(callback.id, "Вам этот режим недоступен.")
+        bot.answer_callback_query(callback.id, "Этот режим доступен только для премиум пользователей.")
         callback.data = "search"
         search(callback)
         return
@@ -882,17 +884,22 @@ def check_match_percent(callback: CallbackQuery) -> None:
         second_user = db.get_user_profile(target_user_id)
         percents["GOOGLE"] = f"{int(compare_profiles_use(translate_ru_to_eng(repr(first_user)), translate_ru_to_eng(repr(second_user))) * 100)}%"
     elif callback.data.endswith("gpt"):
+        user = db.get_user_profile(user_id)
+        if not user.premium:
+            bot.answer_callback_query(callback.id, text="Этот AI доступен только для премиум пользователей")
+            return
         if percents["GPT"]:
             bot.answer_callback_query(callback.id, text="Информация уже получена")
             return
-        pass
+        second_user = db.get_user_profile(target_user_id)
+        percents["GPT"] = f"{int(compare_profiles_gpt(repr(user), repr(second_user)))}%"
 
     keyboard = InlineKeyboardMarkup(row_width=1)
     ai1_button = InlineKeyboardButton(text=f"S-BERT | {percents['S-BERT'] or '???'}",
                                       callback_data=f"check_{target_user_id}_S-BERT")
     ai2_button = InlineKeyboardButton(text=f"GOOGLE USE | {percents['GOOGLE'] or '???'}",
                                       callback_data=f"check_{target_user_id}_google")
-    ai3_button = InlineKeyboardButton(text=f"CHAT GPT | {percents['GPT'] or '???'}",
+    ai3_button = InlineKeyboardButton(text=f"CHAT GPT 💎 | {percents['GPT'] or '???'}",
                                       callback_data=f"check_{target_user_id}_gpt")
     stop_button = InlineKeyboardButton(text="Выход", callback_data="check_stop")
     keyboard.add(ai1_button, ai2_button, ai3_button, stop_button)
@@ -965,7 +972,7 @@ def handle_match_reaction(callback: CallbackQuery) -> None:
         else:
             bot.answer_callback_query(callback.id, "Ошибка, у вас нет telegram username", show_alert=True)
     elif callback.data.endswith("match_decline"):
-        bot.answer_callback_query(callback.id, "Вы сможете вернуться к ответу позже в своём профиле")
+        bot.answer_callback_query(callback.id, "Вы сможете вернуться к ответу позже в разделе 'мэтчи'")
 
     if not current_user_index.get(callback.from_user.id):
         if "basic" in callback.data:
