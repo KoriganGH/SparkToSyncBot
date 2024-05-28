@@ -1,8 +1,8 @@
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 import db
-import neural_networks
+from neural_networks import compare_profiles_sbert, compare_profiles_use, personality_classification
 from config import bot
-from utils import edit_message_markup_with_except, delete_message_with_except
+from utils import edit_message_markup_with_except, delete_message_with_except, translate_ru_to_eng
 import admin
 
 
@@ -501,6 +501,7 @@ def show_photo(callback: CallbackQuery) -> None:
     if callback.data.endswith("registration"):
         user = users.get(callback.from_user.id)
         if user:
+            user.personality = personality_classification(translate_ru_to_eng(repr(user)))
             response = db.add_user(user)
             if response is False:
                 start(callback.message)
@@ -860,28 +861,36 @@ def check_match_percent(callback: CallbackQuery) -> None:
     user_id = callback.from_user.id
     target_user_id = callback.data.split("_")[1]
     if not match_percent.get(user_id):
-        match_percent[user_id] = {target_user_id: {"BERT": None, "GOOGLE": None, "GPT": None}}
+        match_percent[user_id] = {target_user_id: {"S-BERT": None, "GOOGLE": None, "GPT": None}}
     elif not match_percent[user_id].get(target_user_id):
-        match_percent[user_id][target_user_id] = {"BERT": None, "GOOGLE": None, "GPT": None}
+        match_percent[user_id][target_user_id] = {"S-BERT": None, "GOOGLE": None, "GPT": None}
 
     percents = match_percent[user_id][target_user_id]
 
-    if callback.data.endswith("bert"):
+    if callback.data.endswith("S-BERT"):
+        if percents["S-BERT"]:
+            bot.answer_callback_query(callback.id, text="Информация уже получена")
+            return
         first_user = db.get_user_profile(user_id)
         second_user = db.get_user_profile(target_user_id)
-        percents["BERT"] = f"{int(neural_networks.compare_profiles_bert(repr(first_user), repr(second_user)) * 100)}%"
+        percents["S-BERT"] = f"{int(compare_profiles_sbert(repr(first_user), repr(second_user)) * 100)}%"
     elif callback.data.endswith("google"):
+        if percents["GOOGLE"]:
+            bot.answer_callback_query(callback.id, text="Информация уже получена")
+            return
         first_user = db.get_user_profile(user_id)
         second_user = db.get_user_profile(target_user_id)
-        percents[
-            "GOOGLE"] = f"{int(neural_networks.compare_profiles_google(repr(first_user), repr(second_user)) * 100)}%"
+        percents["GOOGLE"] = f"{int(compare_profiles_use(translate_ru_to_eng(repr(first_user)), translate_ru_to_eng(repr(second_user))) * 100)}%"
     elif callback.data.endswith("gpt"):
+        if percents["GPT"]:
+            bot.answer_callback_query(callback.id, text="Информация уже получена")
+            return
         pass
 
     keyboard = InlineKeyboardMarkup(row_width=1)
-    ai1_button = InlineKeyboardButton(text=f"BERT | {percents['BERT'] or '???'}",
-                                      callback_data=f"check_{target_user_id}_bert")
-    ai2_button = InlineKeyboardButton(text=f"GOOGLE Transformer | {percents['GOOGLE'] or '???'}",
+    ai1_button = InlineKeyboardButton(text=f"S-BERT | {percents['S-BERT'] or '???'}",
+                                      callback_data=f"check_{target_user_id}_S-BERT")
+    ai2_button = InlineKeyboardButton(text=f"GOOGLE USE | {percents['GOOGLE'] or '???'}",
                                       callback_data=f"check_{target_user_id}_google")
     ai3_button = InlineKeyboardButton(text=f"CHAT GPT | {percents['GPT'] or '???'}",
                                       callback_data=f"check_{target_user_id}_gpt")

@@ -4,16 +4,9 @@ from sqlalchemy import create_engine, Column, BigInteger, String, Integer, Large
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Query
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.dialects.postgresql import ARRAY
-from os import getenv
 from sqlalchemy.exc import SQLAlchemyError
+from config import DB_URL
 
-# Загрузка переменных окружения
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Настройка базы данных
-DB_URL = getenv("DB_URL")
 engine = create_engine(DB_URL)
 Session = sessionmaker(bind=engine)
 Base = declarative_base()
@@ -85,6 +78,7 @@ class UserProfile(Base):
     telegram = Column(String(50), nullable=False)
     photo = Column(LargeBinary, nullable=False)
     hobbies = Column(MutableList.as_mutable(ARRAY(String)), nullable=False)
+    personality = Column(String(50), nullable=False)
     premium = Column(Boolean, default=False, nullable=False)
     verified = Column(Boolean, default=None)
     created_at = Column(DateTime, default=datetime.now)
@@ -116,8 +110,6 @@ class UserProfile(Base):
 
     def __repr__(self):
         return (
-            f"Имя: {self.name or 'не указано'}\n"
-            f"Пол: {self.gender or 'не указан'}\n"
             f"Возраст: {self.age or 'не указан'}\n"
             f"Город: {self.city or 'не указан'}\n"
             f"Хобби: {', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
@@ -138,7 +130,8 @@ def add_user(user) -> bool:
             telegram=user.telegram,
             photo=user.photo,
             gender=user.gender,
-            hobbies=user.hobbies
+            hobbies=user.hobbies,
+            personality=user.personality
         )
         with Session() as session:
             session.add(new_user)
