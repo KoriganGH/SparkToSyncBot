@@ -3,13 +3,12 @@ from transformers import pipeline
 import tensorflow_hub as hub
 import numpy as np
 from openai import OpenAI
-from config import GOOGLE_USE_PATH, CHAT_GPT_API_KEY
+from config import GOOGLE_USE_PATH, CHAT_GPT_API_KEY, personality_traits
 
 sbert = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 use = hub.load(GOOGLE_USE_PATH)
 classifier = pipeline("zero-shot-classification", model='facebook/bart-large-mnli')
 client = OpenAI(api_key=CHAT_GPT_API_KEY)
-personality_traits = ["Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"]
 
 
 def personality_classification(profile):

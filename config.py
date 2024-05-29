@@ -13,3 +13,6 @@ CHAT_GPT_API_KEY = getenv("CHAT_GPT_API_KEY")
 PAYMENT_KEY = getenv("PAYMENT_KEY")
 bot = TeleBot(TOKEN)
 translator = Translator(TRANSLATE_API_KEY)
+personality_traits = ["Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"]
+hobbies = ["Спорт", "Творчество", "Природа", "Кулинария", "Гейминг", "Путешествия", "Технологии", "Духовность",
+           "Коллекционирование"]

@@ -1,7 +1,7 @@
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 import db
 from neural_networks import compare_profiles_sbert, compare_profiles_use, compare_profiles_gpt, personality_classification
-from config import bot
+from config import bot, hobbies
 from utils import edit_message_markup_with_except, delete_message_with_except, translate_ru_to_eng
 import admin
 import payment
@@ -437,8 +437,6 @@ def choose_hobbies(callback: CallbackQuery) -> None:
         temp_callback_data = "once"
 
     keyboard = InlineKeyboardMarkup(row_width=2)
-    hobbies = ["Спорт", "Творчество", "Природа", "Кулинария", "Гейминг", "Путешествия", "Технологии", "Духовность",
-               "Коллекционирование"]
     buttons = []
     for hobby in hobbies:
         button = InlineKeyboardButton(hobby, callback_data=f"set_hobbies_{temp_callback_data}/{hobby}")
@@ -602,7 +600,8 @@ def verify(callback: CallbackQuery) -> None:
     db.add_verification_request(callback.from_user.id)
     user.verified = False
     db.update_user(user)
-    bot.answer_callback_query(callback.id, "Заявка успешно подана! Она будет рассмотрена в течение 24 часов.", show_alert=True)
+    bot.answer_callback_query(callback.id, "Заявка успешно подана! Она будет рассмотрена в течение 24 часов.",
+                              show_alert=True)
     profile(callback)
 
 
@@ -882,7 +881,8 @@ def check_match_percent(callback: CallbackQuery) -> None:
             return
         first_user = db.get_user_profile(user_id)
         second_user = db.get_user_profile(target_user_id)
-        percents["GOOGLE"] = f"{int(compare_profiles_use(translate_ru_to_eng(repr(first_user)), translate_ru_to_eng(repr(second_user))) * 100)}%"
+        percents[
+            "GOOGLE"] = f"{int(compare_profiles_use(translate_ru_to_eng(repr(first_user)), translate_ru_to_eng(repr(second_user))) * 100)}%"
     elif callback.data.endswith("gpt"):
         user = db.get_user_profile(user_id)
         if not user.premium:
@@ -1034,4 +1034,4 @@ def text(message: Message) -> None:
 
 
 if __name__ == "__main__":
-    bot.polling(timeout=35)
+    bot.infinity_polling(none_stop=True)

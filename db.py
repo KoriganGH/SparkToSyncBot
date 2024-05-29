@@ -75,12 +75,12 @@ class UserProfile(Base):
     gender = Column(String(10), nullable=False)
     city = Column(String(50), nullable=False)
     about = Column(String(500), nullable=False)
-    telegram = Column(String(50), nullable=False)
+    telegram = Column(String(50), nullable=True)
     photo = Column(LargeBinary, nullable=False)
     hobbies = Column(MutableList.as_mutable(ARRAY(String)), nullable=False)
-    personality = Column(String(50), nullable=False)
+    personality = Column(String(50), nullable=True)
     premium = Column(Boolean, default=False, nullable=False)
-    verified = Column(Boolean, default=None)
+    verified = Column(Boolean, default=None, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     reactions = relationship(
         "UserProfile",
@@ -112,9 +112,9 @@ class UserProfile(Base):
         return (
             f"Возраст: {self.age or 'не указан'}\n"
             f"Город: {self.city or 'не указан'}\n"
+            f"{'Тип личности: ' + self.personality if self.personality else ''}"
             f"Хобби: {', '.join(self.hobbies) if self.hobbies else 'не указаны'}\n"
             f"О себе: {self.about or 'не указано'}\n"
-            f"{'Профиль верифицирован' if self.verified else ''}"
         )
 
 
@@ -151,6 +151,11 @@ def user_exists(user_id) -> bool:
 def get_user_profile(user_id):
     with Session() as session:
         return session.query(UserProfile).filter_by(id=user_id).first()
+
+
+def get_all_users():
+    with Session() as session:
+        return session.query(UserProfile)
 
 
 # def edit_user_field(user: UserProfile, field_name: str, new_value: str) -> bool:
