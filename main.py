@@ -1,6 +1,7 @@
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 import db
-from neural_networks import compare_profiles_sbert, compare_profiles_use, compare_profiles_gpt, personality_classification
+from neural_networks import compare_profiles_sbert, compare_profiles_use, compare_profiles_gpt, \
+    personality_classification
 from config import bot, hobbies
 from utils import edit_message_markup_with_except, delete_message_with_except, translate_ru_to_eng
 import admin
@@ -664,19 +665,21 @@ def search(callback: CallbackQuery) -> None:
     elif callback.data == "search_extended_mode":
         show_filters(callback)
     elif callback.data == "search_premium_mode":
-        premium_search(callback)
+        show_filters(callback)
 
 
 def show_filters(callback: CallbackQuery) -> None:
     delete_message_with_except(callback.message)
-
     filters = search_filters.get(callback.from_user.id)
     if not filters:
         search_filters[callback.from_user.id] = {"city": None, "age": None, "gender": None}
         filters = search_filters[callback.from_user.id]
-
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
     keyboard = InlineKeyboardMarkup(row_width=1)
-    start_button = InlineKeyboardButton(text="Старт", callback_data="extended_search")
+    if user.premium:
+        start_button = InlineKeyboardButton(text="Далее", callback_data="premium_search")
+    else:
+        start_button = InlineKeyboardButton(text="Старт", callback_data="extended_search")
     gender_button = InlineKeyboardButton(text=f"Пол | {filters['gender'] or 'любой'}", callback_data="filter_gender")
     age_button = InlineKeyboardButton(text=f"Возраст | {filters['age'] or 'любой'}", callback_data="filter_age")
     city_button = InlineKeyboardButton(text=f"Город | {filters['city'] or 'любой'}", callback_data="filter_city")
@@ -694,7 +697,6 @@ def set_filters(callback: CallbackQuery) -> None:
     if not filters:
         show_filters(callback)
 
-    edit_message_markup_with_except(callback.message)
     delete_message_with_except(callback.message)
 
     if "gender" in callback.data:
@@ -808,31 +810,127 @@ def extended_search(callback: CallbackQuery) -> None:
         profile(callback)
 
 
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith("premium_search"))
 def premium_search(callback: CallbackQuery) -> None:
     user: db.UserProfile = db.get_user_profile(callback.from_user.id)
-
     if not user.premium:
-        bot.answer_callback_query(callback.id, "Этот режим доступен только для премиум пользователей.")
+        bot.answer_callback_query(callback.id, "Этот режим доступен только для пользователей с премиум статусом.")
         callback.data = "search"
         search(callback)
         return
-
-
-def send_next_profile(callback: CallbackQuery) -> None:
-    user_id = callback.from_user.id
-    if not current_user_index.get(user_id) and "basic" in callback.data:
-        basic_search(callback)
+    filters = search_filters.get(callback.from_user.id)
+    if not filters:
+        set_filters(callback)
         return
-    if not current_user_index.get(user_id) and "extended" in callback.data:
-        extended_search(callback)
-        return
-    edit_message_markup_with_except(callback.message)
     delete_message_with_except(callback.message)
+    if callback.data == "premium_search":
+        keyboard = InlineKeyboardMarkup(row_width=3)
+        bert_button = InlineKeyboardButton(text=f"S-BERT ", callback_data="ai_premium_s-bert")
+        google_button = InlineKeyboardButton(text=f"GOOGLE USE", callback_data="ai_premium_google")
+        without_button = InlineKeyboardButton(text=f"Не нужно", callback_data="extended_search")
+        exit_button = InlineKeyboardButton(text=f"Выход", callback_data="premium_search_exit")
+        keyboard.add(bert_button, google_button, without_button, exit_button)
+        bot.send_message(callback.message.chat.id, "Теперь выберите AI для улучшенного поиска", reply_markup=keyboard)
+    elif callback.data == "premium_search_exit":
+        search(callback)
 
+
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith("ai_"))
+def ai_search(callback: CallbackQuery) -> None:
+    filters = search_filters.get(callback.from_user.id)
+    if not filters:
+        set_filters(callback)
+        return
+
+    available_users = db.get_query_of_users_who_liked_first(callback.from_user.id)
+    if not available_users.all():
+        available_users = db.get_query_of_users_with_no_interactions(callback.from_user.id)
+        filtered_available_users = db.get_filtered_users(available_users, filters)
+    else:
+        filtered_available_users = db.get_filtered_users(available_users, filters)
+
+    if filtered_available_users:
+        users_with_match_percent = []
+        main_user = db.get_user_profile(callback.from_user.id)
+        for user in filtered_available_users:
+            percent = None
+            if callback.data.endswith("bert"):
+                percent = f"{int(compare_profiles_sbert(repr(main_user), repr(user)) * 100)}%"
+            if callback.data.endswith("google"):
+                percent = f"{int(compare_profiles_use(translate_ru_to_eng(repr(main_user)), translate_ru_to_eng(repr(user))) * 100)}%"
+            if percent:
+                user.percent = percent
+                users_with_match_percent.append((user, percent))
+        users_ordered_by_match_percent = sorted(users_with_match_percent, key=lambda x: x[1], reverse=True)
+        users_ordered_by_match_percent = list(map(lambda user_profile: user_profile[0], users_ordered_by_match_percent))
+        current_user_index[callback.from_user.id] = (users_ordered_by_match_percent, 0)
+        send_next_profile_with_percent(callback)
+    else:
+        bot.answer_callback_query(callback.id, "На данный момент для вас нет подходящих профилей.")
+        profile(callback)
+
+
+def send_next_profile_with_percent(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    if not current_user_index.get(user_id):
+        premium_search(callback)
+        return
+
+    delete_message_with_except(callback.message)
     available_users, index = current_user_index[user_id]
 
     if index < len(available_users):
         user = available_users[index]
+        keyboard = InlineKeyboardMarkup(row_width=2)
+        like_button = InlineKeyboardButton(text="👍", callback_data=f"reaction_{user.id}_like")
+        dislike_button = InlineKeyboardButton(text="👎", callback_data=f"reaction_{user.id}_dislike")
+        check_button = InlineKeyboardButton(text="Узнать процент совместимости у CHAT GPT 4",
+                                            callback_data=f"gpt_{user.id}")
+        stop_button = InlineKeyboardButton(text="Выход", callback_data="profile")
+        keyboard.add(like_button, dislike_button, check_button)
+        keyboard.add(stop_button)
+
+        if user.photo:
+            bot.send_photo(callback.message.chat.id, user.photo, f"{user}\n<b>Процент совместимости:</b> {user.percent}",
+                           reply_markup=keyboard, parse_mode="HTML")
+        else:
+            current_user_index[user_id] = (available_users, index + 1)
+            send_next_profile_with_percent(callback)
+    else:
+        premium_search(callback)
+
+
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith("gpt"))
+def percent_gpt(callback: CallbackQuery) -> None:
+    if "CHAT GPT" in callback.message.caption:
+        bot.answer_callback_query(callback.id, "Ответ уже получен")
+        return
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
+    target_user = db.get_user_profile(callback.data.split("_")[1])
+    percent = f"{int(compare_profiles_gpt(repr(user), repr(target_user)))}%"
+    reply_markup = callback.message.reply_markup
+    if percent:
+        try:
+            bot.edit_message_caption(f"{target_user}\nПо мнению CHAT GPT 4 вы совместимы на {percent}",
+                                     callback.message.chat.id, callback.message.id, parse_mode="HTML", reply_markup=reply_markup)
+        except:
+            bot.answer_callback_query(callback.id, "Возникла проблема")
+
+
+def send_next_profile(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    if not current_user_index.get(user_id):
+        profile(callback)
+        return
+
+    delete_message_with_except(callback.message)
+    available_users, index = current_user_index[user_id]
+
+    if index < len(available_users):
+        user = available_users[index]
+        if hasattr(user, 'percent'):
+            send_next_profile_with_percent(callback)
+            return
         keyboard = InlineKeyboardMarkup(row_width=2)
         like_button = InlineKeyboardButton(text="👍", callback_data=f"reaction_{user.id}_like")
         dislike_button = InlineKeyboardButton(text="👎", callback_data=f"reaction_{user.id}_dislike")
@@ -868,7 +966,7 @@ def check_match_percent(callback: CallbackQuery) -> None:
 
     percents = match_percent[user_id][target_user_id]
 
-    if callback.data.endswith("S-BERT"):
+    if callback.data.endswith("s-bert"):
         if percents["S-BERT"]:
             bot.answer_callback_query(callback.id, text="Информация уже получена")
             return
@@ -895,14 +993,15 @@ def check_match_percent(callback: CallbackQuery) -> None:
         percents["GPT"] = f"{int(compare_profiles_gpt(repr(user), repr(second_user)))}%"
 
     keyboard = InlineKeyboardMarkup(row_width=1)
-    ai1_button = InlineKeyboardButton(text=f"S-BERT | {percents['S-BERT'] or '???'}",
-                                      callback_data=f"check_{target_user_id}_S-BERT")
-    ai2_button = InlineKeyboardButton(text=f"GOOGLE USE | {percents['GOOGLE'] or '???'}",
-                                      callback_data=f"check_{target_user_id}_google")
-    ai3_button = InlineKeyboardButton(text=f"CHAT GPT 💎 | {percents['GPT'] or '???'}",
+    bert_button = InlineKeyboardButton(text=f"S-BERT | {percents['S-BERT'] or '???'}",
+                                       callback_data=f"check_{target_user_id}_s-bert")
+    google_button = InlineKeyboardButton(text=f"GOOGLE USE | {percents['GOOGLE'] or '???'}",
+                                         callback_data=f"check_{target_user_id}_google")
+    gpt_button = InlineKeyboardButton(text=f"CHAT GPT 4 💎 | {percents['GPT'] or '???'}",
                                       callback_data=f"check_{target_user_id}_gpt")
     stop_button = InlineKeyboardButton(text="Выход", callback_data="check_stop")
-    keyboard.add(ai1_button, ai2_button, ai3_button, stop_button)
+    keyboard.add(bert_button, google_button, gpt_button, stop_button)
+
     try:
         bot.edit_message_reply_markup(callback.message.chat.id, callback.message.id, reply_markup=keyboard)
     except:
@@ -933,12 +1032,8 @@ def handle_reaction(callback: CallbackQuery) -> None:
 
     delete_message_with_except(callback.message)
     if not current_user_index.get(user_id):
-        if "basic" in callback.data:
-            basic_search(callback)
-            return
-        if "extended" in callback.data:
-            extended_search(callback)
-            return
+        profile(callback)
+        return
 
     available_users, index = current_user_index[user_id]
     current_user_index[user_id] = (available_users, index + 1)

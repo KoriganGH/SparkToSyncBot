@@ -9,10 +9,16 @@ pending_requests = {}
 mailing_filters = {}
 
 
+@bot.callback_query_handler(func=lambda callback: callback.data == "admin")
 @bot.message_handler(commands=['admin'])
-def admin_panel(message):
+def admin_panel(message: Message | CallbackQuery) -> None:
     if message.from_user.id not in admins:
         return
+    if isinstance(message, CallbackQuery):
+        message = message.message
+
+    delete_message_with_except(message)
+
     markup = InlineKeyboardMarkup(row_width=3)
     mailing_button = InlineKeyboardButton(text="Рассылка", callback_data="mailing")
     review_button = InlineKeyboardButton(text="Верификация", callback_data="review")
@@ -70,7 +76,8 @@ def send_to_users(message: Message, users):
 def mailing(callback: CallbackQuery) -> None:
     delete_message_with_except(callback.message)
     if not mailing_filters.get(callback.from_user.id):
-        mailing_filters[callback.from_user.id] = {"personality": None, "hobby": None, "age": None, "city": None}
+        mailing_filters[callback.from_user.id] = {"personality": None, "hobby": None, "age": None, "city": None,
+                                                  "gender": None}
     filters = mailing_filters[callback.from_user.id]
     markup = InlineKeyboardMarkup(row_width=1)
     button_1 = InlineKeyboardButton(text=f"Тип личности: {filters['personality'] or 'Любой'}",
@@ -78,15 +85,27 @@ def mailing(callback: CallbackQuery) -> None:
     button_2 = InlineKeyboardButton(text=f"Хобби: {filters['hobby'] or 'Любые'}", callback_data="filters_hobby")
     button_3 = InlineKeyboardButton(text=f"Возраст: {filters['age'] or 'Любой'}", callback_data="filters_age")
     button_4 = InlineKeyboardButton(text=f"Город: {filters['city'] or 'Любой'}", callback_data="filters_city")
-    button_5 = InlineKeyboardButton(text="Начать рассылку", callback_data="send")
-    markup.add(button_1, button_2, button_3, button_4, button_5)
+    button_5 = InlineKeyboardButton(text=f"Пол: {filters['gender'] or 'Любой'}", callback_data="filters_gender")
+    button_6 = InlineKeyboardButton(text="Начать рассылку", callback_data="send")
+    button_7 = InlineKeyboardButton(text="Выход", callback_data="admin")
+    markup.add(button_1, button_2, button_3, button_4, button_5, button_6, button_7)
     bot.send_message(callback.message.chat.id, "Фильтры для рассылки", reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("filters"))
 def edit_mailing_filters(callback: CallbackQuery) -> None:
     delete_message_with_except(callback.message)
+    filters = mailing_filters[callback.from_user.id]
+    if not filters:
+        mailing(callback)
+        return
+
     edit_filter = callback.data.split("_")[1]
+    if filters[edit_filter]:
+        filters[edit_filter] = None
+        mailing(callback)
+        return
+
     markup = InlineKeyboardMarkup(row_width=2)
     if edit_filter == "personality":
         buttons = []
@@ -105,15 +124,16 @@ def edit_mailing_filters(callback: CallbackQuery) -> None:
         markup.add(*buttons)
         bot.send_message(callback.message.chat.id, "Выберите хобби:", reply_markup=markup)
     elif edit_filter == "age":
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton(text="Выход", callback_data="mailing"))
         bot.send_message(callback.message.chat.id, "Напишите диапазон возраста в виде двух чисел через пробел")
         bot.register_next_step_handler(callback.message, get_age_for_mailing, callback)
     elif edit_filter == "city":
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton(text="Выход", callback_data="mailing"))
         bot.send_message(callback.message.chat.id, "Напишите город", reply_markup=markup)
         bot.register_next_step_handler(callback.message, get_city_for_mailing, callback)
+    elif edit_filter == "gender":
+        button_1 = InlineKeyboardButton("Мужчина", callback_data="set_gender_Мужчина")
+        button_2 = InlineKeyboardButton("Женщина", callback_data="set_gender_Женщина")
+        markup.add(button_1, button_2)
+        bot.send_message(callback.message.chat.id, "Выберите пол:", reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("set"))
@@ -161,6 +181,7 @@ def review_requests(callback: CallbackQuery) -> None:
     pending_requests[callback.message.chat.id] = get_pending_verification_requests()
     if not pending_requests[callback.message.chat.id]:
         bot.send_message(callback.message.chat.id, "Нет заявок на рассмотрение.")
+        admin_panel(callback)
     else:
         current_index[callback.message.chat.id] = 0
         send_request(callback.message.chat.id)
@@ -174,7 +195,8 @@ def send_request(chat_id):
     reject_button = InlineKeyboardButton(text="Отклонить", callback_data=f"reject_{request.id}")
     next_button = InlineKeyboardButton(text="Следующий", callback_data="next")
     prev_button = InlineKeyboardButton(text="Предыдущий", callback_data="prev")
-    markup.add(approve_button, reject_button)
+    exit_button = InlineKeyboardButton(text="Выход", callback_data="admin")
+    markup.add(approve_button, reject_button, exit_button)
     if current_index[chat_id] > 0:
         markup.add(prev_button)
     if current_index[chat_id] < len(pending_requests[chat_id]) - 1:
