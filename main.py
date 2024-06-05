@@ -50,7 +50,7 @@ def create_profile(callback: CallbackQuery) -> None:
     if db.user_exists(callback.message.from_user.id):
         return
 
-    bot.answer_callback_query(callback.id, "Вы перешли в раздел создания профиля, следуйте инструкциям в чате",
+    bot.answer_callback_query(callback.id, "Вы перешли в раздел создания профиля, следуйте инструкциям в чате.",
                               show_alert=True)
     delete_message_with_except(callback.message)
 
@@ -446,7 +446,7 @@ def choose_hobbies(callback: CallbackQuery) -> None:
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                              text=f"Выберете свои хобби (возможны несколько вариантов)", reply_markup=keyboard)
+                              text=f"Выберете свои хобби:\n(возможен выбор нескольких вариантов)", reply_markup=keyboard)
     except:
         bot.send_message(callback.message.chat.id, f"Выберете свои хобби",
                          reply_markup=keyboard)

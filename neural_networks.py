@@ -34,8 +34,9 @@ def compare_profiles_use(profile1, profile2):
 def compare_profiles_gpt(profile1, profile2):
     response = client.chat.completions.create(model="gpt-4o", messages=[
         {"role": "system", "content": "You are a helpful psychologist's assistant."},
-        {"role": "user", "content": f"Напиши мне процент совместимости этих двух людей. В ответе от тебя жду только "
-                                    f"число от 0 до 100 в зависимости от совместимости этих людей.\n"
-                                    f"Человек 1\n{profile1}\nЧеловек 2\n{profile2}"},
+        {"role": "user", "content": f"Write me the percentage of compatibility between these two people. In your "
+                                    f"answer I expect only a number from 0 to 100 depending on the compatibility of "
+                                    f"these people.\n"
+                                    f"Person 1\n{profile1}\nPerson 2\n{profile2}"},
     ])
     return response.choices[0].message.content

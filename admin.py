@@ -110,7 +110,7 @@ def edit_mailing_filters(callback: CallbackQuery) -> None:
     if edit_filter == "personality":
         buttons = []
         for personality in personality_traits:
-            button = InlineKeyboardButton(text=personality, callback_data=f"set_personality_{personality}")
+            button = InlineKeyboardButton(text=personality, callback_data=f"sset_personality_{personality}")
             buttons.append(button)
         buttons.append(InlineKeyboardButton(text="Выход", callback_data="mailing"))
         markup.add(*buttons)
@@ -118,7 +118,7 @@ def edit_mailing_filters(callback: CallbackQuery) -> None:
     elif edit_filter == "hobby":
         buttons = []
         for hobby in hobbies:
-            button = InlineKeyboardButton(text=hobby, callback_data=f"set_hobby_{hobby}")
+            button = InlineKeyboardButton(text=hobby, callback_data=f"sset_hobby_{hobby}")
             buttons.append(button)
         buttons.append(InlineKeyboardButton(text="Выход", callback_data="mailing"))
         markup.add(*buttons)
@@ -130,13 +130,13 @@ def edit_mailing_filters(callback: CallbackQuery) -> None:
         bot.send_message(callback.message.chat.id, "Напишите город", reply_markup=markup)
         bot.register_next_step_handler(callback.message, get_city_for_mailing, callback)
     elif edit_filter == "gender":
-        button_1 = InlineKeyboardButton("Мужчина", callback_data="set_gender_Мужчина")
-        button_2 = InlineKeyboardButton("Женщина", callback_data="set_gender_Женщина")
+        button_1 = InlineKeyboardButton("Мужчина", callback_data="sset_gender_Мужчина")
+        button_2 = InlineKeyboardButton("Женщина", callback_data="sset_gender_Женщина")
         markup.add(button_1, button_2)
         bot.send_message(callback.message.chat.id, "Выберите пол:", reply_markup=markup)
 
 
-@bot.callback_query_handler(func=lambda callback: callback.data.startswith("set"))
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith("sset"))
 def set_mailing_filters(callback: CallbackQuery) -> None:
     edit_filter = callback.data.split("_")[1]
     value = callback.data.split("_")[2]
