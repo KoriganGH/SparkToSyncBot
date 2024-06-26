@@ -446,7 +446,8 @@ def choose_hobbies(callback: CallbackQuery) -> None:
 
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
-                              text=f"Выберете свои хобби:\n(возможен выбор нескольких вариантов)", reply_markup=keyboard)
+                              text=f"Выберете свои хобби:\n(возможен выбор нескольких вариантов)",
+                              reply_markup=keyboard)
     except:
         bot.send_message(callback.message.chat.id, f"Выберете свои хобби",
                          reply_markup=keyboard)
@@ -645,14 +646,18 @@ def edit_profile(callback: CallbackQuery) -> None:
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("search"))
 def search(callback: CallbackQuery) -> None:
     edit_message_markup_with_except(callback.message)
+    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
 
     keyboard = InlineKeyboardMarkup(row_width=1)
     if callback.data == "search":
         basic_mode_button = InlineKeyboardButton("Обычный", callback_data="search_basic_mode")
-        extended_mode_button = InlineKeyboardButton("Расширенный", callback_data="search_extended_mode")
         business_mode_button = InlineKeyboardButton("Премиум 💎", callback_data="search_premium_mode")
         exit_button = InlineKeyboardButton("Выход", callback_data="profile")
-        keyboard.add(basic_mode_button, extended_mode_button, business_mode_button, exit_button)
+        if not user.premium:
+            extended_mode_button = InlineKeyboardButton("Расширенный", callback_data="search_extended_mode")
+            keyboard.add(basic_mode_button, extended_mode_button, business_mode_button, exit_button)
+        else:
+            keyboard.add(basic_mode_button, business_mode_button, exit_button)
         try:
             bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.message_id,
                                   text="Выберете режим поиска", reply_markup=keyboard)
@@ -665,6 +670,11 @@ def search(callback: CallbackQuery) -> None:
     elif callback.data == "search_extended_mode":
         show_filters(callback)
     elif callback.data == "search_premium_mode":
+        if not user.premium:
+            bot.answer_callback_query(callback.id, "Этот режим доступен только для пользователей с премиум статусом.")
+            callback.data = "search"
+            search(callback)
+            return
         show_filters(callback)
 
 
@@ -812,12 +822,6 @@ def extended_search(callback: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("premium_search"))
 def premium_search(callback: CallbackQuery) -> None:
-    user: db.UserProfile = db.get_user_profile(callback.from_user.id)
-    if not user.premium:
-        bot.answer_callback_query(callback.id, "Этот режим доступен только для пользователей с премиум статусом.")
-        callback.data = "search"
-        search(callback)
-        return
     filters = search_filters.get(callback.from_user.id)
     if not filters:
         set_filters(callback)
@@ -828,11 +832,9 @@ def premium_search(callback: CallbackQuery) -> None:
         bert_button = InlineKeyboardButton(text=f"S-BERT ", callback_data="ai_premium_s-bert")
         google_button = InlineKeyboardButton(text=f"GOOGLE USE", callback_data="ai_premium_google")
         without_button = InlineKeyboardButton(text=f"Не нужно", callback_data="extended_search")
-        exit_button = InlineKeyboardButton(text=f"Выход", callback_data="premium_search_exit")
+        exit_button = InlineKeyboardButton(text=f"Выход", callback_data="search_premium_mode")
         keyboard.add(bert_button, google_button, without_button, exit_button)
         bot.send_message(callback.message.chat.id, "Теперь выберите AI для улучшенного поиска", reply_markup=keyboard)
-    elif callback.data == "premium_search_exit":
-        search(callback)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data.startswith("ai_"))
@@ -891,7 +893,8 @@ def send_next_profile_with_percent(callback: CallbackQuery) -> None:
         keyboard.add(stop_button)
 
         if user.photo:
-            bot.send_photo(callback.message.chat.id, user.photo, f"{user}\n<b>Процент совместимости:</b> {user.percent}",
+            bot.send_photo(callback.message.chat.id, user.photo,
+                           f"{user}\n<b>Процент совместимости:</b> {user.percent}",
                            reply_markup=keyboard, parse_mode="HTML")
         else:
             current_user_index[user_id] = (available_users, index + 1)
@@ -912,7 +915,8 @@ def percent_gpt(callback: CallbackQuery) -> None:
     if percent:
         try:
             bot.edit_message_caption(f"{target_user}\nПо мнению CHAT GPT 4 вы совместимы на {percent}",
-                                     callback.message.chat.id, callback.message.id, parse_mode="HTML", reply_markup=reply_markup)
+                                     callback.message.chat.id, callback.message.id, parse_mode="HTML",
+                                     reply_markup=reply_markup)
         except:
             bot.answer_callback_query(callback.id, "Возникла проблема")
 

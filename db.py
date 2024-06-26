@@ -14,8 +14,8 @@ Base = declarative_base()
 
 class Reaction(Base):
     __tablename__ = "reactions"
-    user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
-    target_user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
+    target_user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
     reaction = Column(String(10), nullable=False)  # "like" или "dislike"
     created_at = Column(DateTime, default=datetime.now)
 
@@ -31,7 +31,6 @@ def add_reaction(user_id, target_user_id, reaction_type) -> bool:
         with Session() as session:
             session.add(new_reaction)
             session.commit()
-
             return True
 
     except SQLAlchemyError as e:
@@ -41,8 +40,8 @@ def add_reaction(user_id, target_user_id, reaction_type) -> bool:
 
 class Match(Base):
     __tablename__ = "matches"
-    user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
-    matched_user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
+    matched_user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
     created_at = Column(DateTime, default=datetime.now)
 
 
@@ -68,7 +67,7 @@ def check_match(user_id, target_user_id) -> bool:
 
 
 class UserProfile(Base):
-    __tablename__ = "users4"
+    __tablename__ = "users"
     id = Column(BigInteger, primary_key=True)
     name = Column(String(100), nullable=False)
     age = Column(Integer, nullable=False)
@@ -118,7 +117,6 @@ class UserProfile(Base):
         )
 
 
-# Функции утилиты базы данных
 def add_user(user) -> bool:
     try:
         new_user = UserProfile(
@@ -250,7 +248,7 @@ def get_filtered_users(users: Query, filters: dict) -> List[UserProfile]:
 class VerificationRequest(Base):
     __tablename__ = "verification_requests"
     id = Column(BigInteger, primary_key=True)
-    user_id = Column(BigInteger, ForeignKey("users4.id"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     status = Column(String(20), nullable=False, default="pending")  # Статус: "pending", "approved", "rejected"
     request_date = Column(DateTime, default=datetime.now)
     review_date = Column(DateTime)
@@ -287,7 +285,7 @@ def get_pending_verification_requests():
 
 # class Tests(Base):
 #     __tablename__ = "tests"
-#     user_id = Column(BigInteger, ForeignKey("users4.id"), primary_key=True)
+#     user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
 #     test_result = Column(String(100), nullable=False)
 #     created_at = Column(DateTime, default=datetime.now)
 
